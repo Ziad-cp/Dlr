@@ -60,6 +60,8 @@ tracking. See [SECURITY.md](SECURITY.md).
 <details open>
 <summary><b>On Android</b></summary>
 
+<img src="docs/screenshot-android.png" alt="Dlr on Android" width="240" align="right">
+
 1. On your phone, tap **Download for Android** above. If your browser asks, tap **Download**
    (or **Download anyway**).
 2. When it's done, tap **Open** (or find **Dlr-Android.apk** in the **Files** app ›
@@ -72,6 +74,7 @@ tracking. See [SECURITY.md](SECURITY.md).
 
 If Android says **"App not installed"** or **"not compatible"**, your phone is an older 32-bit
 model: use [the 32-bit version](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Android-32-bit.apk) instead.
+<br clear="right">
 
 </details>
 
