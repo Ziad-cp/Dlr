@@ -59,6 +59,14 @@ internet text.
 home) are disabled. Dependencies come only from PyPI and Homebrew, are pinned to exact versions
 in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilities as of 1.0.0).
 
+**FFmpeg in the downloadable apps.** The apps on the Releases page are built by GitHub Actions
+(`.github/workflows/build.yml`) and include FFmpeg, fetched by `packaging/get_ffmpeg.py` from
+builds that ffmpeg.org links to. The Windows build (BtbN/FFmpeg-Builds on GitHub) must match the
+SHA-256 published in that release; the Mac build (Martin Riedl) must carry a valid Apple-issued
+code signature and be built for the right chip. Both must run and include the encoders Dlr
+uses, or the build stops. The app uses its own FFmpeg before any installed one. Each release
+also lists the SHA-256 of every download in `SHA256SUMS.txt`.
+
 ## Privacy
 
 - **Saved:** only `config.json`, holding the download folder
@@ -115,10 +123,14 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 - **Updated code lives in your account:** the update is code the app runs, stored in your
   Library folder. Anyone who can already write there could change it; its checksum is
   re-checked at every launch, which catches damage but not a deliberate change of both files.
-- **Ad-hoc signature:** the app is signed for your own Mac, not notarized by Apple. On another
-  Mac, Gatekeeper asks you to confirm the first launch.
+- **Ad-hoc signature:** the Mac app is signed "ad hoc", not notarized by Apple, so macOS asks
+  you to confirm the first launch (System Settings › Privacy & Security › Open Anyway). The
+  Windows installer isn't code-signed either, so SmartScreen shows a warning first.
+- **Bundled FFmpeg trusts its builders:** the checks prove the FFmpeg download is intact and
+  (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
 - **Clipboard:** read when the window comes to the front (only a link is used).
-- **Windows:** the code supports it, but the Windows build hasn't been tested.
+- **Windows:** built and tested automatically on GitHub's Windows computers, but less used than
+  the Mac app. Settings live in `%APPDATA%\Dlr\`.
 
 ## Keeping it safe
 
