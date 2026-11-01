@@ -102,25 +102,6 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 5. **Checks:** at most once a day at launch, the app asks GitHub for the latest version and shows
    a dot on the Settings icon. It never installs anything without your click.
 
-## iPhone script (a-Shell)
-
-`vd.py` uses the same checks and file rules. Files go only into `~/Documents/Downloads`,
-and only `vd-result.*` hand-over files go into the Shortcut folder.
-
-**Command injection.** A Shortcut must never paste the shared link into the command text.
-Harmless demonstration with a crafted "link":
-
-```
-https://example.com/x"; echo "INJECTED: this ran with your permissions" > pwned.txt; echo "
-```
-
-| Shortcut builds the command as | Result |
-|---|---|
-| `python3 vd.pyz "<link>" video` (unsafe) | the shell runs the `echo`: **pwned.txt is created** |
-| `python3 vd.pyz --url-b64 <base64 of link> video` | the command contains only `A-Z a-z 0-9 + / =`; vd.py decodes it, rejects it ("hidden or invalid characters"), nothing runs |
-
-`vd.py` also accepts `--url-file` (the file is deleted after reading).
-
 ## Known limits
 
 - **Redirects inside yt-dlp:** a public site could still redirect yt-dlp's own requests to a
@@ -137,8 +118,6 @@ https://example.com/x"; echo "INJECTED: this ran with your permissions" > pwned.
 - **Ad-hoc signature:** the app is signed for your own Mac, not notarized by Apple. On another
   Mac, Gatekeeper asks you to confirm the first launch.
 - **Clipboard:** read when the window comes to the front (only a link is used).
-- **a-Shell:** base64 hides the link from a casual look but isn't encryption, and a-Shell may
-  remember the commands it ran.
 - **Windows:** the code supports it, but the Windows build hasn't been tested.
 
 ## Keeping it safe

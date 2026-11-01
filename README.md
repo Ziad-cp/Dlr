@@ -2,8 +2,7 @@
 
 Dlr is a minimal dark-mode app for downloading videos and MP3s from YouTube, TikTok, Instagram, X,
 Reddit, Facebook and [many other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
-Runs on **macOS** (and Windows from source), plus a separate **iPhone** version that runs
-entirely on the phone in a-Shell.
+Runs on **macOS** (and Windows from source).
 
 Built with [yt-dlp](https://github.com/yt-dlp/yt-dlp) (as a Python library), FFmpeg and
 [pywebview](https://pywebview.flowrl.com/). It only downloads: no history, no logs, no
@@ -76,12 +75,6 @@ Build the app and the DMG (`dist/Dlr.app`, `dist/Dlr-1.1.0.dmg`):
 Command-line mode (same code and checks, no window), from `Dlr.app/Contents/MacOS/Dlr`:
 `--download LINK video|mp3 [FOLDER]`, `--version`, `--update-ytdlp`
 
-## Install on iPhone
-
-Step-by-step: [iphone/GUIDE.md](iphone/GUIDE.md). In short: install **a-Shell**, run
-`pip install yt-dlp`, copy `vd.pyz` (built with `python3 iphone/build.py`) to a-Shell, and build
-the **Download** Shortcut so it appears in the Share menu.
-
 ## Updating yt-dlp
 
 Sites change, and yt-dlp keeps up with new releases. When downloads start failing:
@@ -92,7 +85,6 @@ Sites change, and yt-dlp keeps up with new releases. When downloads start failin
   the next launch. The yt-dlp built into the app stays as a fallback: if the update is damaged
   or won't load, Dlr quietly goes back to it. Rebuilding (`pip install -U yt-dlp`, then
   `python build.py`) also updates the built-in copy.
-- **iPhone:** in a-Shell, `pip install -U yt-dlp`.
 
 ## What it keeps
 
@@ -107,14 +99,13 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 | --- | --- |
 | `app.py` | Window (pywebview), the functions the page may call, command-line mode |
 | `ui/` | The interface: `index.html`, `style.css`, `app.js` |
-| `downloader.py` | Download logic shared with the iPhone script: formats, checks, retry, Apple-compatible MP4 |
-| `safety.py` | Link and file rules (shared with the iPhone script) |
+| `downloader.py` | Download logic: formats, checks, retry, Apple-compatible MP4 |
+| `safety.py` | Link and file rules |
 | `spotify.py` | Spotify song info and the matching YouTube upload |
 | `config.py` | The settings file |
 | `updater.py` | Verified yt-dlp updates from GitHub for the packaged app, with fallback |
 | `build.py` | Builds the .app and .dmg (macOS) or .exe (Windows) |
 | `packaging/` | App icon and the script that draws it |
-| `iphone/` | `vd.py`, its builder, and the iPhone guide |
 
 ## Notes
 

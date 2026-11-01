@@ -1,4 +1,4 @@
-"""Input and file-system safety rules, shared by the Mac app and the iPhone script.
+"""Input and file-system safety rules.
 
 - Links: http/https only, a sane length, no control characters, no logins in the
   link, and never this computer or the local network (localhost, 192.168.x.x ...).

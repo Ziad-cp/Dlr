@@ -7,7 +7,6 @@ macOS   -> dist/Dlr.app  and  dist/Dlr-<version>.dmg
 Windows -> dist/Dlr.exe  (single file)
 
 PyInstaller can't cross-compile: build the .exe on Windows and the .app on a Mac.
-The iPhone script is built separately: python iphone/build.py
 """
 import os
 import pathlib
