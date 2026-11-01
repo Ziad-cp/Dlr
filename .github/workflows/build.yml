@@ -73,28 +73,74 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test that the app starts and finds its FFmpeg
+        timeout-minutes: 5
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            APP=dist/Dlr.app/Contents/MacOS/Dlr
-            "$APP" --version
-            ls dist/Dlr.app/Contents/Frameworks/ffmpeg/ffmpeg dist/Dlr.app/Contents/Frameworks/ffmpeg/ffprobe
-            dist/Dlr.app/Contents/Frameworks/ffmpeg/ffmpeg -hide_banner -version | head -n 1
-          else
-            APP=dist/Dlr/Dlr.exe
-            "$APP" --version
-            dist/Dlr/_internal/ffmpeg/ffmpeg.exe -hide_banner -version | head -n 1
-            dist/Dlr/_internal/ffmpeg/ffprobe.exe -hide_banner -version | head -n 1
-          fi
+          if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
+          "$APP" --version 2>&1 | tee version.txt
+          grep -q "^Dlr " version.txt
+          grep "^FFmpeg: " version.txt | grep -qv "not found"
+          grep -Eq "Frameworks/ffmpeg|_internal.ffmpeg" version.txt   # its own FFmpeg, not one on the computer
 
-      - name: Test a real download (may fail if the site blocks GitHub's computers)
-        continue-on-error: true
+      - name: Test real downloads (video with conversion to H.264, and MP3)
+        timeout-minutes: 10
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
           mkdir -p test-download
-          "$APP" --download "https://www.youtube.com/watch?v=jNQXAC9IVRw" video "$PWD/test-download"
-          "$APP" --download "https://www.youtube.com/watch?v=jNQXAC9IVRw" mp3 "$PWD/test-download"
+          ok=0
+          # Public test videos from sites that don't block GitHub's computers. The first is an
+          # old Ogg/Theora file, so Dlr has to convert it to an MP4 that plays everywhere.
+          for url in "https://download.blender.org/peach/trailer/trailer_400p.ogg" \
+                     "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"; do
+            if "$APP" --download "$url" video "$PWD/test-download" 2>&1 | tee -a downloads.txt &&
+               "$APP" --download "$url" mp3 "$PWD/test-download" 2>&1 | tee -a downloads.txt; then
+              ok=1; break
+            fi
+          done
           ls -la test-download
+          [ "$ok" = 1 ]
           ls test-download/*.mp4 test-download/*.mp3
+
+      - name: Test a YouTube download (YouTube often blocks GitHub's computers)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
+          "$APP" --download "https://www.youtube.com/watch?v=jNQXAC9IVRw" video "$PWD/test-download" 2>&1 | tee yt.txt
+          ! grep -q "^ERROR" yt.txt
+
+      - name: Open the app and take a screenshot (Mac)
+        if: runner.os == 'macOS'
+        timeout-minutes: 5
+        run: |
+          mkdir -p screenshots
+          open dist/Dlr.app
+          sleep 25
+          pgrep -x Dlr >/dev/null || { echo "Dlr closed by itself"; exit 1; }
+          screencapture -x "screenshots/${{ matrix.file }}.png" || echo "::warning::No screenshot"
+          pkill -x Dlr || true
+
+      - name: Open the app and take a screenshot (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force screenshots | Out-Null
+          $p = Start-Process dist\Dlr\Dlr.exe -PassThru
+          Start-Sleep 25
+          if ($p.HasExited) { Write-Error "Dlr closed by itself (exit code $($p.ExitCode))"; exit 1 }
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+          $bmp.Save("screenshots\${{ matrix.file }}.png")
+          Stop-Process -Id $p.Id -Force
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screenshot-${{ matrix.file }}
+          path: screenshots/
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v5
         with:
@@ -156,6 +202,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Test on an Android emulator
+        timeout-minutes: 45
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -167,6 +214,19 @@ jobs:
           script: |
             gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.EngineTest
             gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.RealDownloadTest || echo "::warning::The real-download test on Android failed (sites sometimes block GitHub's computers). See the log above."
+            gradle -p android --no-daemon assembleDebug -PuniversalApk
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am start -W -n io.github.ziadcp.dlr/.MainActivity
+            sleep 30
+            mkdir -p screenshots && adb exec-out screencap -p > screenshots/android.png
+            adb shell pidof io.github.ziadcp.dlr
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screenshot-android
+          path: screenshots/
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v5
         with:
@@ -192,6 +252,7 @@ jobs:
       - uses: actions/download-artifact@v6
         with:
           path: files
+          pattern: Dlr-*
           merge-multiple: true
 
       - name: Create the release
