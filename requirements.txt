@@ -13,6 +13,10 @@ pyobjc-framework-Quartz==12.2.2 ; sys_platform == "darwin"
 pyobjc-framework-Security==12.2.2 ; sys_platform == "darwin"
 pyobjc-framework-UniformTypeIdentifiers==12.2.2 ; sys_platform == "darwin"
 pyobjc-framework-WebKit==12.2.2 ; sys_platform == "darwin"
+pythonnet==3.2.1 ; sys_platform == "win32"
+clr_loader==0.3.1 ; sys_platform == "win32"
+cffi==2.1.1 ; sys_platform == "win32"
+pycparser==3.12 ; sys_platform == "win32"
 # Only needed to build the standalone app (build.py)
 pyinstaller==6.22.3
 pyinstaller-hooks-contrib==2026.9
