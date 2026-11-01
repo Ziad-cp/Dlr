@@ -110,6 +110,35 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 5. **Checks:** at most once a day at launch, the app asks GitHub for the latest version and shows
    a dot on the Settings icon. It never installs anything without your click.
 
+## Android app
+
+The Android app (`android/`) follows the same rules as the desktop app:
+
+- **Links:** `LinkCheck.java` applies the same checks as `safety.py` (web links only, length,
+  hidden characters, no logins in the link, never this phone or the local network, names
+  resolved and checked), with unit tests for each case.
+- **One permission:** internet. Saving to Downloads › Dlr uses Android's MediaStore, which needs
+  no storage permission. No contacts, camera, location or other data.
+- **No shell:** yt-dlp runs as a program with an argument list (youtubedl-android's
+  `ProcessBuilder`), never through a shell. Plugins and config files are off
+  (`--no-plugin-dirs`, `--ignore-config`) and yt-dlp's cache is off.
+- **Files:** downloads happen in a private folder in the app's cache, which is deleted after
+  every download, error or stop (and at the next start if the app was closed). Only the
+  finished file is copied to Downloads; Android never overwrites, it adds " (1)" to a name.
+- **yt-dlp updates:** at most once a day, or with **Update**. Only from
+  `github.com/yt-dlp/yt-dlp/releases/latest` over HTTPS, following redirects only to GitHub's
+  download servers, and only if the file matches the release's official `SHA2-256SUMS` and
+  is a real yt-dlp release (its version is read from inside it). Each APK also comes with the
+  newest yt-dlp, checked the same way when it's built.
+- **Privacy:** no history, logs or analytics; app data is excluded from backups and device
+  transfers.
+- **Network connections:** the site you download from, DNS for the link check, and GitHub for
+  yt-dlp updates.
+
+Limits: the APK is signed with the project's key only if the signing secrets are set up
+(see README); otherwise each build has its own key. Downloads are an Android process that keeps
+running while Dlr is open; if you leave the app, Android may stop a long download.
+
 ## Known limits
 
 - **Redirects inside yt-dlp:** a public site could still redirect yt-dlp's own requests to a
