@@ -270,6 +270,9 @@ def download_cli(args: list[str]) -> int:
     except dl.DownloaderError as e:
         print(f"ERROR: {e}")
         return 1
+    except Exception as e:  # e.g. yt-dlp's own errors: a plain message, never a traceback
+        print(f"ERROR: {dl.friendly_error(e)}")
+        return 1
     print(result["path"])
     return 0
 
