@@ -1,0 +1,28 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Build output (build.py)
+build/
+dist/
+*.spec
+*.dmg
+*.pyz
+
+# Settings and downloads never belong in the repository
+config.json
+downloads/
+Downloads/
+*.mp4
+*.mp3
+*.m4a
+*.webm
+*.mkv
+*.part
+*.ytdl
+.vd-*/
+
+# macOS
+.DS_Store

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Only the app's own files may run or style the page; images only as inline data
+       (thumbnails are fetched and checked by Python). No inline scripts, remote scripts,
+       fonts or connections. 'unsafe-eval' is required by pywebview's bridge (it builds and
+       returns calls with eval); the page only loads local files and escapes all internet text. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-eval'; style-src 'self'; img-src data:; font-src 'none'; connect-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0d">
+  <title>Dlr</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-platform="">
+  <nav class="corner">
+    <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </nav>
+
+  <main>
+    <div class="wrap">
+      <div class="field" id="field">
+        <span class="field-ring" aria-hidden="true"></span>
+        <div class="field-inner">
+          <span class="field-icon" id="fieldIcon"></span>
+          <input id="url" type="url" placeholder="Paste a link" autocomplete="off" autocapitalize="off"
+                 autocorrect="off" spellcheck="false" enterkeyhint="go" aria-label="Video link">
+          <span class="spinner" aria-hidden="true"></span>
+        </div>
+      </div>
+      <p class="error" id="error" role="alert"></p>
+
+      <section class="card" id="card" hidden>
+        <div class="card-top">
+          <div class="thumb">
+            <img id="thumb" alt="" referrerpolicy="no-referrer">
+            <span class="duration" id="duration"></span>
+          </div>
+          <div class="meta">
+            <div class="site"><span id="siteIcon"></span><span id="siteName"></span></div>
+            <h2 id="title"></h2>
+            <div class="badges"><span class="badge" id="videoBadge"></span><span class="badge" id="mp3Badge"></span></div>
+            <p class="uploader" id="uploader"></p>
+          </div>
+        </div>
+        <div class="action-area" id="actionArea">
+          <div class="actions">
+            <button class="action primary" id="videoBtn"><span class="fill"></span><span class="label"></span></button>
+            <button class="action secondary" id="mp3Btn"><span class="fill"></span><span class="label"></span></button>
+          </div>
+          <div class="picker" id="picker" role="group" aria-label="Pick a quality" hidden></div>
+        </div>
+        <p class="stop-hint" id="stopHint" aria-live="polite"></p>
+      </section>
+    </div>
+  </main>
+
+  <div class="stack" id="stack" aria-live="polite"></div>
+
+  <div class="scrim" id="scrim"></div>
+
+  <aside class="panel" id="settingsPanel" aria-label="Settings">
+    <header class="panel-head">
+      <h3>Settings</h3>
+      <button class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <section class="setting">
+      <div class="setting-label">Save downloads to</div>
+      <div class="setting-row">
+        <span class="path" id="folderPath"></span>
+        <button class="chip" id="folderBtn">Change</button>
+      </div>
+    </section>
+    <section class="setting">
+      <div class="setting-row">
+        <div>
+          <div class="setting-label">yt-dlp</div>
+          <div class="hint" id="ytdlpVersion"></div>
+        </div>
+        <button class="chip" id="updateBtn">Update</button>
+      </div>
+      <p class="hint" id="updateMsg"></p>
+    </section>
+    <p class="hint about" id="appVersion"></p>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
