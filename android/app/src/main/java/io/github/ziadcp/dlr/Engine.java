@@ -138,7 +138,6 @@ public final class Engine {
             } else {
                 request.addOption("-f", VIDEO_FORMAT);
                 request.addOption("--merge-output-format", "mp4");
-                request.addOption("--remux-video", "mp4");
             }
             try {
                 YoutubeDL.getInstance().execute(request, jobId, (percent, eta, line) -> {
@@ -392,6 +391,7 @@ public final class Engine {
         if (n.endsWith(".mp4") || n.endsWith(".m4v")) return "video/mp4";
         if (n.endsWith(".webm")) return "video/webm";
         if (n.endsWith(".mkv")) return "video/x-matroska";
+        if (n.endsWith(".mov")) return "video/quicktime";
         if (n.endsWith(".mp3")) return "audio/mpeg";
         if (n.endsWith(".m4a")) return "audio/mp4";
         return "application/octet-stream";

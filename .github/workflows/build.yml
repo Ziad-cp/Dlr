@@ -213,7 +213,7 @@ jobs:
           disable-animations: true
           script: |
             gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.EngineTest
-            gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.RealDownloadTest || echo "::warning::The real-download test on Android failed (sites sometimes block GitHub's computers). See the log above."
+            gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.RealDownloadTest
             gradle -p android --no-daemon assembleDebug -PuniversalApk
             adb install -r android/app/build/outputs/apk/debug/app-debug.apk
             adb shell am start -W -n io.github.ziadcp.dlr/.MainActivity
@@ -233,6 +233,27 @@ jobs:
           name: Dlr-Android
           path: dist/*.apk
           if-no-files-found: error
+
+  screenshots:
+    name: Save screenshots
+    if: github.ref == 'refs/heads/easy-install'
+    needs: [build, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          path: shots
+          pattern: screenshot-*
+          merge-multiple: true
+      - name: Push them to the ci-screenshots branch
+        run: |
+          cd shots
+          git init -q -b ci-screenshots
+          git -c user.name=ci -c user.email=ci@example.invalid add -A
+          git -c user.name=ci -c user.email=ci@example.invalid commit -qm "Screenshots from ${GITHUB_SHA}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
 
   release:
     name: Publish the release
