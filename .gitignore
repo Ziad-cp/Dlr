@@ -23,6 +23,7 @@ Downloads/
 *.part
 *.ytdl
 .vd-*/
+iphone/
 
 # macOS
 .DS_Store

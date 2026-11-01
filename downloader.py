@@ -194,7 +194,7 @@ def _encode_args(timing: dict) -> list[list[str]]:
     if sys.platform == "darwin":
         # The Mac's hardware encoder is much faster.
         encoders.insert(0, ["-c:v", "hevc_videotoolbox", "-q:v", "70", "-tag:v", "hvc1", "-pix_fmt", "yuv420p"])
-    # "-fps_mode" needs FFmpeg 5.1+; older builds (e.g. on iPhone) only know "-vsync".
+    # "-fps_mode" needs FFmpeg 5.1+; older builds only know "-vsync".
     return [["-vf", f"fps={fps}", option, "cfr", *encoder]
             for option in ("-fps_mode", "-vsync") for encoder in encoders]
 
@@ -623,10 +623,10 @@ def tag_audio(ffmpeg_dir: str, path: str, track: dict):
 def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label: str = "",
              prefer_ready_file: bool = False, progress=None, status=None, title=None,
              cancelled=lambda: False) -> dict:
-    """Download one link into folder. Shared by the Mac app and the iPhone script.
+    """Download one link into folder.
 
-    ffmpeg_dir: folder holding ffmpeg/ffprobe, "" to call them by name (a-Shell), or None if
-    there is no FFmpeg (iPhone fallback: only ready-made MP4 files, nothing to merge).
+    ffmpeg_dir: folder holding ffmpeg/ffprobe, "" to call them by name, or None if
+    there is no FFmpeg (fallback: only ready-made MP4 files, nothing to merge).
     Work happens in a private temp folder inside `folder`, removed afterwards whatever
     happens; the result is moved out under a name that never replaces an existing file.
     Returns {"path", "title", "label", "fallback"}. Raises DownloaderError or JobCancelled.
