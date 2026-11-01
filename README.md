@@ -2,7 +2,8 @@
 
 Dlr is a minimal dark-mode app for downloading videos and MP3s from YouTube, TikTok, Instagram, X,
 Reddit, Facebook and [many other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
-Works on **Windows** and **Mac**. Free, and everything it needs is included.
+Works on **Windows**, **Mac** and **Android**. Free, and everything it needs is included.
+(iPhone: [see below](#iphone-and-ipad).)
 
 Built with [yt-dlp](https://github.com/yt-dlp/yt-dlp) (as a Python library), FFmpeg and
 [pywebview](https://pywebview.flowrl.com/). It only downloads: no history, no logs, no
@@ -12,13 +13,15 @@ tracking. See [SECURITY.md](SECURITY.md).
 
 ## Download and install
 
-**1. Click the download for your computer:**
+**1. Tap or click the download for your device:**
 
-| Your computer | Download |
+| Your device | Download |
 | --- | --- |
 | **Windows 10 or 11** | [⬇ **Download for Windows**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Windows-Setup.exe) |
 | **Mac with an Apple chip** (M1, M2, M3, M4…, most Macs from 2021 on) | [⬇ **Download for Mac (Apple chip)**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Apple-Silicon.dmg) |
 | **Mac with an Intel chip** (older Macs) | [⬇ **Download for Mac (Intel)**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Intel.dmg) |
+| **Android phone or tablet** (Android 10 or newer) | [⬇ **Download for Android**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Android.apk) |
+| **iPhone or iPad** | No app, sorry: Apple doesn't allow it. [What you can do instead](#iphone-and-ipad) |
 
 *Not sure which Mac you have?* Click the Apple menu (top-left corner of the screen) ›
 **About This Mac**. If it says **Chip: Apple M…**, you have an Apple chip. If it says
@@ -54,11 +57,53 @@ tracking. See [SECURITY.md](SECURITY.md).
 
 </details>
 
-**3. Use it:** copy a video's link (from YouTube, TikTok, Instagram…), switch to Dlr (the link
-fills in by itself) and click **Download Video** or **MP3**. Files go to your **Downloads** folder.
+<details open>
+<summary><b>On Android</b></summary>
+
+1. On your phone, tap **Download for Android** above. If your browser asks, tap **Download**
+   (or **Download anyway**).
+2. When it's done, tap **Open** (or find **Dlr-Android.apk** in the **Files** app ›
+   **Downloads** and tap it).
+3. The first time, Android asks for permission to install apps from your browser. Tap
+   **Settings**, turn on **Allow from this source**, then go back.
+4. Tap **Install**. If **Google Play Protect** shows a warning, tap **More details** ›
+   **Install anyway**. It appears for apps that don't come from the Play Store.
+5. Tap **Open**. Dlr is now on your home screen or in your app list, like any other app.
+
+If Android says **"App not installed"** or **"not compatible"**, your phone is an older 32-bit
+model: use [the 32-bit version](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Android-32-bit.apk) instead.
+
+</details>
+
+**3. Use it:**
+
+- **Computer:** copy a video's link (from YouTube, TikTok, Instagram…), switch to Dlr (the link
+  fills in by itself) and click **Download Video** or **MP3**. Files go to your **Downloads** folder.
+- **Android:** in YouTube, TikTok, Instagram or your browser, tap **Share** › **Dlr**, then tap
+  **Download Video** or **MP3**. (Or copy the link and open Dlr: it fills in by itself.) Keep
+  Dlr open until it says **Saved**. Files go to **Downloads › Dlr**, and videos also show up
+  in your gallery app.
 
 **Uninstall:** on Windows, Settings › Apps › **Dlr** › Uninstall. On Mac, drag **Dlr** from
-Applications to the Trash.
+Applications to the Trash. On Android, press and hold the Dlr icon › **Uninstall**.
+
+**Update:** download and install the newest version the same way. Dlr keeps your settings.
+(Android: if it says the app **conflicts** with the one you have, uninstall the old Dlr first.)
+
+### iPhone and iPad
+
+There's no Dlr for iPhone or iPad. Apple only lets you install apps from the App Store, and
+the App Store doesn't allow apps that download videos from YouTube and similar sites.
+
+What you can do instead: download on a computer with Dlr, then send the file to your iPhone.
+Dlr's videos are made to play on iPhone (in Photos and every video app).
+
+- **From a Mac:** right-click the video in Finder › **Share** › **AirDrop** › your iPhone.
+  It appears in **Photos**.
+- **From Windows:** put the file in **iCloud Drive** (with
+  [iCloud for Windows](https://apps.microsoft.com/detail/9pktq5699m62)), Google Drive or
+  OneDrive. On your iPhone, open it in the **Files** app (or the Drive app), tap
+  **Share** › **Save Video**, and it appears in **Photos**.
 
 ## Security highlights
 
@@ -133,7 +178,17 @@ or `dist\Dlr\Dlr.exe` on Windows. Run `python packaging/get_ffmpeg.py` first to 
 in the app. On Windows, [Inno Setup](https://jrsoftware.org/isinfo.php) then makes the
 installer: `iscc /DAppVersion=1.1.0 packaging\windows\dlr.iss`.
 
-**Releases:** GitHub builds and tests the Mac and Windows apps on every push
+**Android:** the app is in `android/` (Java, using
+[youtubedl-android](https://github.com/yausername/youtubedl-android) for yt-dlp, Python and
+FFmpeg). With JDK 17, Gradle 8.11+ and the Android SDK (or Android Studio): put the newest
+[`yt-dlp`](https://github.com/yt-dlp/yt-dlp/releases/latest) file at
+`android/app/src/main/res/raw/ytdlp`, then `gradle -p android assembleRelease`. Tests:
+`gradle -p android testDebugUnitTest` and, with a phone or emulator connected,
+`connectedDebugAndroidTest -PuniversalApk`. To sign releases with your own key (so updates
+install over older versions), add the repository secrets `DLR_KEYSTORE_BASE64` (the keystore
+file, base64), `DLR_KEYSTORE_PASSWORD`, `DLR_KEY_ALIAS` and `DLR_KEY_PASSWORD`.
+
+**Releases:** GitHub builds and tests the Mac, Windows and Android apps on every push
 (`.github/workflows/build.yml`). To publish a release, set `__version__` in `app.py`, then
 push a matching tag. The download links above always point to the newest release:
 
@@ -168,6 +223,9 @@ update, the verified yt-dlp in `yt-dlp/`, plus the date of the last update check
 It keeps no history, links, titles, logs or caches. It talks only to the site you download from,
 plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 
+On Android, Dlr keeps only its download engine and the date of the last update check inside
+the app, and saves your videos and MP3s in Downloads › Dlr. Nothing is backed up or shared.
+
 ## Files
 
 | File | What it does |
@@ -182,7 +240,8 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 | `build.py` | Builds the .app and .dmg (macOS) or the app folder (Windows) |
 | `install.sh` | One-command Mac install from source: builds Dlr and puts it in Applications |
 | `packaging/` | App icons, the script that draws them, `get_ffmpeg.py` (fetches a checked FFmpeg for the app) and the Windows installer script |
-| `.github/workflows/build.yml` | Builds, tests and publishes the Mac and Windows downloads |
+| `android/` | The Android app: `MainActivity.java` (the screen), `Engine.java` (downloads, saving, yt-dlp updates), `LinkCheck.java` (the same link rules as `safety.py`), and tests |
+| `.github/workflows/build.yml` | Builds, tests and publishes the Mac, Windows and Android downloads |
 
 ## Notes
 
@@ -196,4 +255,6 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 (Unlicense), [pywebview](https://github.com/r0x0r/pywebview) (BSD) and [FFmpeg](https://ffmpeg.org),
 each under its own license. The downloadable apps include an FFmpeg build licensed under the
 GPL v3; its notice and source details ship inside the app (`FFmpeg-NOTICE.txt` on Mac,
-`_internal\ffmpeg\NOTICE.txt` on Windows).
+`_internal\ffmpeg\NOTICE.txt` on Windows). The Android app uses
+[youtubedl-android](https://github.com/yausername/youtubedl-android) (GPL v3), so the Android
+APK as a whole is distributed under the GPL v3; Dlr's own code stays MIT.

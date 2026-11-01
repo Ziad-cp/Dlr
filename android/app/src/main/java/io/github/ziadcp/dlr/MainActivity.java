@@ -35,6 +35,7 @@ public class MainActivity extends Activity {
     private TextView status, version;
 
     private volatile String runningJob;
+    private volatile boolean stopRequested;
     private Engine.Saved lastSaved;
 
     @Override
@@ -159,6 +160,7 @@ public class MainActivity extends Activity {
         hideKeyboard();
         String jobId = UUID.randomUUID().toString();
         runningJob = jobId;
+        stopRequested = false;
         lastSaved = null;
         setBusy(true);
         open.setVisibility(View.GONE);
@@ -182,6 +184,7 @@ public class MainActivity extends Activity {
                 } else if (drm != null) {
                     throw new Engine.Failed(drm + " is copy-protected, so its videos can't be downloaded.");
                 }
+                if (stopRequested) throw new YoutubeDL.CanceledException();
                 runOnUiThread(() -> status.setText("Downloading…"));
                 saved = Engine.download(this, checked, asMp3, jobId, this::showProgress);
             } catch (LinkCheck.BadLink | Engine.Failed e) {
@@ -236,6 +239,7 @@ public class MainActivity extends Activity {
     private void stop() {
         String job = runningJob;
         if (job == null) return;
+        stopRequested = true;
         cancel.setEnabled(false);
         status.setText("Stopping…");
         new Thread(() -> {
