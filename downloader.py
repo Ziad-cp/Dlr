@@ -48,7 +48,7 @@ class JobCancelled(yt_dlp.utils.DownloadCancelled):
 _FFMPEG_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
 
 NEEDS_FFMPEG = ("This site only sends picture and sound separately, and combining them needs "
-                "FFmpeg. In a-Shell, run: pkg install ffmpeg")
+                "FFmpeg. Install it (Mac: brew install ffmpeg, Windows: winget install Gyan.FFmpeg) and try again.")
 FFMPEG_MISSING = ("FFmpeg isn't installed, so nothing was downloaded. Install it "
                   "(Mac: brew install ffmpeg, Windows: winget install Gyan.FFmpeg) and try again.")
 
