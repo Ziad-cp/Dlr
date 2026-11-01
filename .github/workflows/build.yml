@@ -15,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -36,9 +40,9 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -59,11 +63,13 @@ jobs:
 
       - name: Make the Windows installer
         if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
-          if [ ! -x "$ISCC" ]; then choco install innosetup -y --no-progress; fi
-          VERSION=$(python -c "import re; print(re.search(r'__version__ = \"([^\"]+)\"', open('app.py').read()).group(1))")
-          "$ISCC" "/DAppVersion=$VERSION" packaging/windows/dlr.iss
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          $version = (Select-String -Path app.py -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
+          & $iscc "/DAppVersion=$version" packaging\windows\dlr.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test that the app starts and finds its FFmpeg
         run: |
@@ -89,7 +95,7 @@ jobs:
           ls -la test-download
           ls test-download/*.mp4 test-download/*.mp3
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.file }}
           path: dist/${{ matrix.file }}
@@ -103,14 +109,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check the tag matches the app's version
         run: |
           VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' app.py)
           [ "$GITHUB_REF_NAME" = "v$VERSION" ] || { echo "Tag $GITHUB_REF_NAME doesn't match app.py version $VERSION"; exit 1; }
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           path: files
           merge-multiple: true
