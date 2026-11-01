@@ -50,36 +50,53 @@ The full threat model and its limits are in [SECURITY.md](SECURITY.md). In short
 
 ## Install on Mac
 
-1. Install FFmpeg (needed to combine picture and sound): `brew install ffmpeg`
-2. Build `Dlr-1.1.0.dmg` (see *Run or build from source* below), open it and drag **Dlr** onto
-   **Applications**.
-3. Open it from Applications. On a Mac other than the one that built it: right-click › **Open**
-   the first time (the app is signed for personal use, not notarized by Apple).
+Open **Terminal** (press `⌘ Space`, type *Terminal*, press Enter), paste this line and press Enter:
 
-### Run or build from source
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Ziad-cp/Dlr/main/install.sh)"
+```
+
+That's it. The installer sets up everything Dlr needs (Homebrew, Python 3.12 and FFmpeg),
+builds the app on your Mac, puts **Dlr** in your Applications folder and opens it. It takes a
+few minutes and may ask for your Mac password once, when it installs Homebrew.
+
+- **Update Dlr:** run the same line again.
+- **Uninstall:** drag **Dlr** from Applications to the Trash, and delete
+  `~/Library/Application Support/Dlr/` if you want to remove its settings too.
+- **Want to see what it does first?** Read [install.sh](install.sh). It's short and commented.
+
+<details>
+<summary><b>Manual install, or running from source</b></summary>
 
 ```bash
 brew install python@3.12 ffmpeg
+git clone https://github.com/Ziad-cp/Dlr.git && cd Dlr
+python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ```
 
-```bash
-python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python app.py
-```
+Run it without building: `.venv/bin/python app.py`
 
-Build the app and the DMG (`dist/Dlr.app`, `dist/Dlr-1.1.0.dmg`):
-
-```bash
-.venv/bin/python build.py
-```
+Build the app and the disk image (`dist/Dlr.app`, `dist/Dlr-1.1.0.dmg`): `.venv/bin/python build.py`.
+Then open the DMG and drag **Dlr** onto **Applications**. If you copy the app to another Mac,
+macOS will warn the first time you open it (the app is signed for personal use, not notarized
+by Apple). To open it anyway, go to System Settings › Privacy & Security and click **Open Anyway**.
 
 Command-line mode (same code and checks, no window), from `Dlr.app/Contents/MacOS/Dlr`:
 `--download LINK video|mp3 [FOLDER]`, `--version`, `--update-ytdlp`
+
+**Windows (untested):** install [Python 3.12](https://www.python.org/downloads/) and FFmpeg
+(`winget install Gyan.FFmpeg`), then in the Dlr folder run
+`py -3.12 -m venv .venv`, `.venv\Scripts\pip install -r requirements.txt` and
+`.venv\Scripts\python app.py` (or `build.py` for `dist\Dlr.exe`).
+
+</details>
 
 ## Updating yt-dlp
 
 Sites change, and yt-dlp keeps up with new releases. When downloads start failing:
 
 - **Running from source:** open ⚙ Settings › **Update**, then restart the app.
+- **Installed with the installer:** open ⚙ Settings › **Update** (below), or run the install line again.
 - **The packaged app:** open ⚙ Settings › **Update**. It downloads the newest yt-dlp from
   the official GitHub releases, checks it against the official checksums, and uses it from
   the next launch. The yt-dlp built into the app stays as a fallback: if the update is damaged
@@ -105,6 +122,7 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 | `config.py` | The settings file |
 | `updater.py` | Verified yt-dlp updates from GitHub for the packaged app, with fallback |
 | `build.py` | Builds the .app and .dmg (macOS) or .exe (Windows) |
+| `install.sh` | One-step Mac installer: installs what's needed, builds Dlr and puts it in Applications |
 | `packaging/` | App icon and the script that draws it |
 
 ## Notes
