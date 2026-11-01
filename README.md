@@ -2,13 +2,63 @@
 
 Dlr is a minimal dark-mode app for downloading videos and MP3s from YouTube, TikTok, Instagram, X,
 Reddit, Facebook and [many other sites](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md).
-Runs on **macOS** (and Windows from source).
+Works on **Windows** and **Mac**. Free, and everything it needs is included.
 
 Built with [yt-dlp](https://github.com/yt-dlp/yt-dlp) (as a Python library), FFmpeg and
 [pywebview](https://pywebview.flowrl.com/). It only downloads: no history, no logs, no
 tracking. See [SECURITY.md](SECURITY.md).
 
 ![Dlr on macOS](docs/screenshot.png)
+
+## Download and install
+
+**1. Click the download for your computer:**
+
+| Your computer | Download |
+| --- | --- |
+| **Windows 10 or 11** | [⬇ **Download for Windows**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Windows-Setup.exe) |
+| **Mac with an Apple chip** (M1, M2, M3, M4…, most Macs from 2021 on) | [⬇ **Download for Mac (Apple chip)**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Apple-Silicon.dmg) |
+| **Mac with an Intel chip** (older Macs) | [⬇ **Download for Mac (Intel)**](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Intel.dmg) |
+
+*Not sure which Mac you have?* Click the Apple menu (top-left corner of the screen) ›
+**About This Mac**. If it says **Chip: Apple M…**, you have an Apple chip. If it says
+**Processor: … Intel**, you have an Intel chip.
+
+**2. Install it:**
+
+<details open>
+<summary><b>On Windows</b></summary>
+
+1. Open your **Downloads** folder and double-click **Dlr-Windows-Setup.exe**.
+2. Windows may show a blue box saying **"Windows protected your PC"**. This appears for apps
+   from small developers that haven't paid for a Microsoft certificate. Click **More info**,
+   then **Run anyway**.
+3. Click **Install**, then **Finish**. No password is needed.
+4. Dlr opens by itself. Next time, find it in the **Start menu** or on your **desktop**.
+
+</details>
+
+<details open>
+<summary><b>On Mac</b></summary>
+
+1. Open your **Downloads** folder and double-click the Dlr file you downloaded (it ends in `.dmg`).
+2. A window opens: drag the **Dlr** icon onto the **Applications** folder next to it.
+3. Open **Applications** and double-click **Dlr**.
+4. **The first time only**, your Mac says it can't check Dlr ("Apple could not verify…").
+   This appears for apps from developers who haven't paid for an Apple certificate. Click
+   **Done**, then:
+   - Open **System Settings** (Apple menu › System Settings) › **Privacy & Security**.
+   - Scroll down to the message about Dlr and click **Open Anyway**, then **Open Anyway**
+     again and enter your Mac password.
+5. After that, Dlr opens normally, like any other app.
+
+</details>
+
+**3. Use it:** copy a video's link (from YouTube, TikTok, Instagram…), switch to Dlr (the link
+fills in by itself) and click **Download Video** or **MP3**. Files go to your **Downloads** folder.
+
+**Uninstall:** on Windows, Settings › Apps › **Dlr** › Uninstall. On Mac, drag **Dlr** from
+Applications to the Trash.
 
 ## Security highlights
 
@@ -48,64 +98,72 @@ The full threat model and its limits are in [SECURITY.md](SECURITY.md). In short
 - **⚙ Settings:** download folder, yt-dlp version and update. A dot on the icon means a new
   yt-dlp is available (checked at most once a day; it never updates on its own).
 
-## Install on Mac
+## Build it yourself (for developers)
 
-Open **Terminal** (press `⌘ Space`, type *Terminal*, press Enter), paste this line and press Enter:
+**Mac, one command:** this installs Homebrew, Python 3.12 and FFmpeg if needed, builds Dlr
+on your Mac and puts it in Applications (no security warning, since your Mac built it):
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Ziad-cp/Dlr/main/install.sh)"
 ```
 
-That's it. The installer sets up everything Dlr needs (Homebrew, Python 3.12 and FFmpeg),
-builds the app on your Mac, puts **Dlr** in your Applications folder and opens it. It takes a
-few minutes and may ask for your Mac password once, when it installs Homebrew.
-
-- **Update Dlr:** run the same line again.
-- **Uninstall:** drag **Dlr** from Applications to the Trash, and delete
-  `~/Library/Application Support/Dlr/` if you want to remove its settings too.
-- **Want to see what it does first?** Read [install.sh](install.sh). It's short and commented.
-
 <details>
-<summary><b>Manual install, or running from source</b></summary>
+<summary><b>Manual steps, Windows, and how releases are made</b></summary>
+
+**Run from source (Mac):**
 
 ```bash
 brew install python@3.12 ffmpeg
 git clone https://github.com/Ziad-cp/Dlr.git && cd Dlr
 python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+.venv/bin/python app.py
 ```
 
-Run it without building: `.venv/bin/python app.py`
+**Run from source (Windows):** install [Python 3.12](https://www.python.org/downloads/) and
+FFmpeg (`winget install Gyan.FFmpeg`), then in the Dlr folder:
 
-Build the app and the disk image (`dist/Dlr.app`, `dist/Dlr-1.1.0.dmg`): `.venv/bin/python build.py`.
-Then open the DMG and drag **Dlr** onto **Applications**. If you copy the app to another Mac,
-macOS will warn the first time you open it (the app is signed for personal use, not notarized
-by Apple). To open it anyway, go to System Settings › Privacy & Security and click **Open Anyway**.
+```bat
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python app.py
+```
 
-Command-line mode (same code and checks, no window), from `Dlr.app/Contents/MacOS/Dlr`:
-`--download LINK video|mp3 [FOLDER]`, `--version`, `--update-ytdlp`
+**Build the app:** `python build.py` makes `dist/Dlr.app` and `dist/Dlr-1.1.0.dmg` on a Mac,
+or `dist\Dlr\Dlr.exe` on Windows. Run `python packaging/get_ffmpeg.py` first to include FFmpeg
+in the app. On Windows, [Inno Setup](https://jrsoftware.org/isinfo.php) then makes the
+installer: `iscc /DAppVersion=1.1.0 packaging\windows\dlr.iss`.
 
-**Windows (untested):** install [Python 3.12](https://www.python.org/downloads/) and FFmpeg
-(`winget install Gyan.FFmpeg`), then in the Dlr folder run
-`py -3.12 -m venv .venv`, `.venv\Scripts\pip install -r requirements.txt` and
-`.venv\Scripts\python app.py` (or `build.py` for `dist\Dlr.exe`).
+**Releases:** GitHub builds and tests the Mac and Windows apps on every push
+(`.github/workflows/build.yml`). To publish a release, set `__version__` in `app.py`, then
+push a matching tag. The download links above always point to the newest release:
+
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+**Command-line mode** (same code and checks, no window), from `Dlr.app/Contents/MacOS/Dlr` or
+`Dlr.exe`: `--download LINK video|mp3 [FOLDER]`, `--version`, `--update-ytdlp`
 
 </details>
 
-## Updating yt-dlp
+## When downloads stop working
 
-Sites change, and yt-dlp keeps up with new releases. When downloads start failing:
+Sites change often. Open **⚙ Settings** in Dlr and click **Update**, then close and reopen Dlr.
+A dot on the ⚙ icon means an update is available.
 
-- **Running from source:** open ⚙ Settings › **Update**, then restart the app.
-- **Installed with the installer:** open ⚙ Settings › **Update** (below), or run the install line again.
-- **The packaged app:** open ⚙ Settings › **Update**. It downloads the newest yt-dlp from
-  the official GitHub releases, checks it against the official checksums, and uses it from
-  the next launch. The yt-dlp built into the app stays as a fallback: if the update is damaged
-  or won't load, Dlr quietly goes back to it. Rebuilding (`pip install -U yt-dlp`, then
-  `python build.py`) also updates the built-in copy.
+<details>
+<summary>How the update works</summary>
+
+Dlr downloads the newest yt-dlp (the part that knows how each site works) from its official
+GitHub releases, checks it against the official checksums, and uses it from the next launch.
+The yt-dlp built into the app stays as a fallback: if the update is damaged or won't load, Dlr
+quietly goes back to it. Running from source, **Update** uses `pip install -U yt-dlp` instead.
+
+</details>
 
 ## What it keeps
 
-`~/Library/Application Support/Dlr/` holds `config.json` (your download folder) and, after an
+`~/Library/Application Support/Dlr/` on Mac, or `%APPDATA%\Dlr\` on Windows, holds `config.json` (your download folder) and, after an
 update, the verified yt-dlp in `yt-dlp/`, plus the date of the last update check.
 It keeps no history, links, titles, logs or caches. It talks only to the site you download from,
 plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
@@ -121,9 +179,10 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 | `spotify.py` | Spotify song info and the matching YouTube upload |
 | `config.py` | The settings file |
 | `updater.py` | Verified yt-dlp updates from GitHub for the packaged app, with fallback |
-| `build.py` | Builds the .app and .dmg (macOS) or .exe (Windows) |
-| `install.sh` | One-step Mac installer: installs what's needed, builds Dlr and puts it in Applications |
-| `packaging/` | App icon and the script that draws it |
+| `build.py` | Builds the .app and .dmg (macOS) or the app folder (Windows) |
+| `install.sh` | One-command Mac install from source: builds Dlr and puts it in Applications |
+| `packaging/` | App icons, the script that draws them, `get_ffmpeg.py` (fetches a checked FFmpeg for the app) and the Windows installer script |
+| `.github/workflows/build.yml` | Builds, tests and publishes the Mac and Windows downloads |
 
 ## Notes
 
@@ -134,5 +193,7 @@ plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 ## License
 
 [MIT](LICENSE) © 2026 Ziad Gahlan. Dlr uses [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-(Unlicense), [pywebview](https://github.com/r0x0r/pywebview) (BSD) and FFmpeg, each under its
-own license.
+(Unlicense), [pywebview](https://github.com/r0x0r/pywebview) (BSD) and [FFmpeg](https://ffmpeg.org),
+each under its own license. The downloadable apps include an FFmpeg build licensed under the
+GPL v3; its notice and source details ship inside the app (`FFmpeg-NOTICE.txt` on Mac,
+`_internal\ffmpeg\NOTICE.txt` on Windows).
