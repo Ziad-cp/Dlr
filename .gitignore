@@ -27,3 +27,6 @@ iphone/
 
 # macOS
 .DS_Store
+
+# FFmpeg downloaded for the app (packaging/get_ffmpeg.py)
+packaging/ffmpeg/

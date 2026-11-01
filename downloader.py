@@ -48,14 +48,23 @@ class JobCancelled(yt_dlp.utils.DownloadCancelled):
 _FFMPEG_DIRS = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
 
 NEEDS_FFMPEG = ("This site only sends picture and sound separately, and combining them needs "
-                "FFmpeg. In a-Shell, run: pkg install ffmpeg")
-FFMPEG_MISSING = ("FFmpeg isn't installed, so nothing was downloaded. Install it "
+                "FFmpeg. Install it (Mac: brew install ffmpeg, Windows: winget install Gyan.FFmpeg) and try again.")
+FFMPEG_MISSING = ("FFmpeg is missing, so nothing was downloaded. Reinstall Dlr from its download "
+                  "page (it includes FFmpeg), or install FFmpeg yourself "
                   "(Mac: brew install ffmpeg, Windows: winget install Gyan.FFmpeg) and try again.")
 
 
+def _bundled_ffmpeg_dir():
+    """The FFmpeg built into the downloadable app (see packaging/get_ffmpeg.py), if any."""
+    if not getattr(sys, "frozen", False):
+        return None
+    return os.path.join(getattr(sys, "_MEIPASS", os.path.dirname(sys.executable)), "ffmpeg")
+
+
 def find_ffmpeg():
-    """Folder that holds both ffmpeg and ffprobe, or None."""
-    for d in [None, *_FFMPEG_DIRS]:
+    """Folder that holds both ffmpeg and ffprobe, or None. The app's own copy comes first."""
+    bundled = _bundled_ffmpeg_dir()
+    for d in [*([bundled] if bundled else []), None, *_FFMPEG_DIRS]:
         ffmpeg = shutil.which("ffmpeg", path=d)
         if ffmpeg and shutil.which("ffprobe", path=os.path.dirname(ffmpeg)):
             return os.path.dirname(ffmpeg)
@@ -64,6 +73,14 @@ def find_ffmpeg():
 
 def _tool(ffmpeg_dir: str, name: str) -> str:
     return shutil.which(name, path=ffmpeg_dir) or os.path.join(ffmpeg_dir, name)
+
+
+# Options for every FFmpeg/ffprobe run: no input (a windowed Windows app has none, which can
+# make starting a program fail), UTF-8 output whatever the system language, and on Windows
+# no console window flashing up for each run.
+RUN_OPTS = {"stdin": subprocess.DEVNULL, "encoding": "utf-8", "errors": "replace"}
+if sys.platform == "win32":
+    RUN_OPTS["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 
 # FFmpeg may only read local files, and only real audio/video containers: a downloaded
@@ -79,7 +96,7 @@ def probe_streams(ffmpeg_dir: str, path: str) -> list[dict]:
         [_tool(ffmpeg_dir, "ffprobe"), *LOCAL_ONLY, "-v", "error", "-show_entries",
          "stream=index,codec_type,codec_name,width,height,avg_frame_rate,r_frame_rate,bit_rate"
          ":stream_disposition=attached_pic:format=format_name", "-of", "json", os.path.abspath(path)],
-        capture_output=True, text=True, timeout=120)
+        capture_output=True, text=True, timeout=120, **RUN_OPTS)
     try:
         data = json.loads(r.stdout or "{}")
     except ValueError:
@@ -101,7 +118,7 @@ def frame_timing(ffmpeg_dir: str, path: str, stream_index: int) -> dict:
     r = subprocess.run(
         [_tool(ffmpeg_dir, "ffprobe"), *LOCAL_ONLY, "-v", "error", "-select_streams", str(stream_index),
          "-show_entries", "packet=duration_time,size", "-of", "csv=p=0", os.path.abspath(path)],
-        capture_output=True, text=True, timeout=600)
+        capture_output=True, text=True, timeout=600, **RUN_OPTS)
     durations, junk = [], 0
     for line in r.stdout.splitlines():
         try:
@@ -213,7 +230,7 @@ def _remux(ffmpeg_dir: str, src: str, dst: str, v: dict, a, video_attempts: list
     tail += ["-movflags", "+faststart", "-f", "mp4"]
     for video_args in video_attempts:
         tmp = safety.temp_file(folder, ".mp4")
-        r = subprocess.run(base + video_args + tail + [tmp], capture_output=True, text=True)
+        r = subprocess.run(base + video_args + tail + [tmp], capture_output=True, text=True, **RUN_OPTS)
         if r.returncode == 0 and os.path.getsize(tmp):
             os.replace(tmp, dst)
             return
@@ -613,7 +630,7 @@ def tag_audio(ffmpeg_dir: str, path: str, track: dict):
              "-metadata", f"title={track['name']}", "-metadata", f"artist={', '.join(track['artists'])}"]
     if track.get("year"):
         args += ["-metadata", f"date={track['year']}"]
-    r = subprocess.run(args + ["-f", "mp3", tmp], capture_output=True, text=True)
+    r = subprocess.run(args + ["-f", "mp3", tmp], capture_output=True, text=True, **RUN_OPTS)
     if r.returncode == 0 and os.path.getsize(tmp):
         os.replace(tmp, path)
     safety.remove_inside(folder, tmp)
