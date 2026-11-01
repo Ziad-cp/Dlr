@@ -59,6 +59,14 @@ internet text.
 home) are disabled. Dependencies come only from PyPI and Homebrew, are pinned to exact versions
 in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilities as of 1.0.0).
 
+**FFmpeg in the downloadable apps.** The apps on the Releases page are built by GitHub Actions
+(`.github/workflows/build.yml`) and include FFmpeg, fetched by `packaging/get_ffmpeg.py` from
+builds that ffmpeg.org links to. The Windows build (BtbN/FFmpeg-Builds on GitHub) must match the
+SHA-256 published in that release; the Mac build (Martin Riedl) must carry a valid Apple-issued
+code signature and be built for the right chip. Both must run and include the encoders Dlr
+uses, or the build stops. The app uses its own FFmpeg before any installed one. Each release
+also lists the SHA-256 of every download in `SHA256SUMS.txt`.
+
 ## Privacy
 
 - **Saved:** only `config.json`, holding the download folder
@@ -102,6 +110,35 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 5. **Checks:** at most once a day at launch, the app asks GitHub for the latest version and shows
    a dot on the Settings icon. It never installs anything without your click.
 
+## Android app
+
+The Android app (`android/`) follows the same rules as the desktop app:
+
+- **Links:** `LinkCheck.java` applies the same checks as `safety.py` (web links only, length,
+  hidden characters, no logins in the link, never this phone or the local network, names
+  resolved and checked), with unit tests for each case.
+- **One permission:** internet. Saving to Downloads › Dlr uses Android's MediaStore, which needs
+  no storage permission. No contacts, camera, location or other data.
+- **No shell:** yt-dlp runs as a program with an argument list (youtubedl-android's
+  `ProcessBuilder`), never through a shell. Plugins and config files are off
+  (`--no-plugin-dirs`, `--ignore-config`) and yt-dlp's cache is off.
+- **Files:** downloads happen in a private folder in the app's cache, which is deleted after
+  every download, error or stop (and at the next start if the app was closed). Only the
+  finished file is copied to Downloads; Android never overwrites, it adds " (1)" to a name.
+- **yt-dlp updates:** at most once a day, or with **Update**. Only from
+  `github.com/yt-dlp/yt-dlp/releases/latest` over HTTPS, following redirects only to GitHub's
+  download servers, and only if the file matches the release's official `SHA2-256SUMS` and
+  is a real yt-dlp release (its version is read from inside it). Each APK also comes with the
+  newest yt-dlp, checked the same way when it's built.
+- **Privacy:** no history, logs or analytics; app data is excluded from backups and device
+  transfers.
+- **Network connections:** the site you download from, DNS for the link check, and GitHub for
+  yt-dlp updates.
+
+Limits: the APK is signed with the project's key only if the signing secrets are set up
+(see README); otherwise each build has its own key. Downloads are an Android process that keeps
+running while Dlr is open; if you leave the app, Android may stop a long download.
+
 ## Known limits
 
 - **Redirects inside yt-dlp:** a public site could still redirect yt-dlp's own requests to a
@@ -115,10 +152,14 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 - **Updated code lives in your account:** the update is code the app runs, stored in your
   Library folder. Anyone who can already write there could change it; its checksum is
   re-checked at every launch, which catches damage but not a deliberate change of both files.
-- **Ad-hoc signature:** the app is signed for your own Mac, not notarized by Apple. On another
-  Mac, Gatekeeper asks you to confirm the first launch.
+- **Ad-hoc signature:** the Mac app is signed "ad hoc", not notarized by Apple, so macOS asks
+  you to confirm the first launch (System Settings › Privacy & Security › Open Anyway). The
+  Windows installer isn't code-signed either, so SmartScreen shows a warning first.
+- **Bundled FFmpeg trusts its builders:** the checks prove the FFmpeg download is intact and
+  (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
 - **Clipboard:** read when the window comes to the front (only a link is used).
-- **Windows:** the code supports it, but the Windows build hasn't been tested.
+- **Windows:** built and tested automatically on GitHub's Windows computers, but less used than
+  the Mac app. Settings live in `%APPDATA%\Dlr\`.
 
 ## Keeping it safe
 
