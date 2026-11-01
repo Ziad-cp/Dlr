@@ -3,8 +3,10 @@
 # Every push: builds and tests the Mac (Apple chip and Intel), Windows and Android apps (the
 #             Android app on an Android emulator). They can be downloaded from the run's
 #             "Artifacts" for testing.
-# A tag v1.2.3: also publishes them as a GitHub Release, where anyone can download them:
-#             git tag v1.1.0 && git push origin v1.1.0   (must match __version__ in app.py)
+# A tag v1.2.3: also publishes them as a GitHub Release, where anyone can download them.
+#             Either push a tag (git tag v1.1.0 && git push origin v1.1.0), or on GitHub:
+#             Releases › Draft a new release › tag v1.1.0 › Publish. The files are added
+#             about 10 minutes later. The tag must match __version__ in app.py.
 name: Build apps
 
 on:
@@ -277,5 +279,13 @@ jobs:
           Everything Dlr needs is included. You don't need to install anything else.
           Step-by-step instructions: https://github.com/Ziad-cp/Dlr#download-and-install
           EOF
-          gh release create "$GITHUB_REF_NAME" * --repo "$GITHUB_REPOSITORY" \
-            --title "Dlr ${GITHUB_REF_NAME#v}" --notes-file ../notes.md
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # The release was created on the GitHub website: add the files (and notes if it has none).
+            gh release upload "$GITHUB_REF_NAME" * --clobber --repo "$GITHUB_REPOSITORY"
+            if [ -z "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body)" ]; then
+              gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file ../notes.md
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" * --repo "$GITHUB_REPOSITORY" \
+              --title "Dlr ${GITHUB_REF_NAME#v}" --notes-file ../notes.md
+          fi
