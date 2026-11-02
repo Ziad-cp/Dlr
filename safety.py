@@ -148,6 +148,24 @@ def move_into(folder: str, src: str, base: str, ext: str) -> str:
         return target
 
 
+def move_dir_into(folder: str, base: str, files: list[tuple[str, str]]) -> str:
+    """Make a new folder base (or "base (2)" ...) inside folder and move each (src, name) into
+    it. An existing folder is never reused: the name is claimed by creating it exclusively."""
+    n = 1
+    while True:
+        target = os.path.join(folder, base if n == 1 else f"{base} ({n})")
+        try:
+            os.mkdir(target, 0o755)
+        except FileExistsError:
+            n += 1
+            continue
+        break
+    for src, name in files:
+        name = safe_filename(name, 150, "file")
+        move_into(target, src, *os.path.splitext(name))
+    return target
+
+
 def temp_file(folder: str, suffix: str) -> str:
     """Create a new, empty, randomly named hidden temp file in folder (never an existing one)."""
     fd, path = tempfile.mkstemp(dir=folder, prefix=".vd-", suffix=suffix)

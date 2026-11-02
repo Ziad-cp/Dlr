@@ -1,0 +1,5 @@
+{"props": {"pageProps": {"state": {"data": {"entity": {
+  "type": "track", "name": "Never Gonna Give You Up", "artists": [{"name": "Rick Astley"}],
+  "duration": 213573, "releaseDate": {"isoString": "1987-11-12T00:00:00Z"},
+  "visualIdentity": {"image": [{"url": "https://image-cdn-fa.spotifycdn.com/image/rick", "maxWidth": 640}]}
+}}}}}}

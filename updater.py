@@ -1,4 +1,4 @@
-"""yt-dlp updates for the packaged app (Dlr.app has its own yt-dlp sealed inside).
+"""yt-dlp and gallery-dl updates for the packaged app (Dlr.app has both sealed inside).
 
 - Downloads only from the official GitHub releases (github.com/yt-dlp/yt-dlp), over HTTPS,
   following redirects only to GitHub's own download servers.
@@ -10,6 +10,11 @@
 - Dlr installs a new release on its own: at most once a day at launch, and again (at most once
   an hour) when a download fails, since a failure often means the site changed. It's used from
   the next launch. The Update button does the same at any time.
+
+gallery-dl (used for photo posts) is updated the same way, from its official releases on PyPI
+(pypi.org lists the SHA-256 of every release file), into ~/Library/Application Support/Dlr/
+gallery-dl/. It always runs in a separate process (see gallery.py), which calls
+activate_gallery_dl() first, so a new version is used at once.
 
 activate() must run before anything imports yt_dlp.
 """
@@ -126,7 +131,7 @@ def _discard(note: str):
             pass
 
 
-# ---- network: GitHub only ----
+# ---- network: GitHub (yt-dlp) or PyPI (gallery-dl) only ----
 
 def _allowed(url: str) -> bool:
     parts = urlsplit(url)
@@ -134,30 +139,35 @@ def _allowed(url: str) -> bool:
     return parts.scheme == "https" and (host == "github.com" or host.endswith(".githubusercontent.com"))
 
 
-class _GitHubOnly(urllib.request.HTTPRedirectHandler):
+def _allowed_pypi(url: str) -> bool:
+    parts = urlsplit(url)
+    return parts.scheme == "https" and (parts.hostname or "").lower() in ("pypi.org", "files.pythonhosted.org")
+
+
+class _Restricted(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed, site: str):
+        self.allowed, self.site = allowed, site
+
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _allowed(newurl):
-            raise UpdateError("The download was sent somewhere other than GitHub, so it was stopped.")
+        if not self.allowed(newurl):
+            raise UpdateError(f"The download was sent somewhere other than {self.site}, so it was stopped.")
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-_opener = urllib.request.build_opener(_GitHubOnly)
-
-
-def _get(url: str, limit: int, method: str = "GET"):
-    if not _allowed(url):
-        raise UpdateError("Only GitHub is allowed for updates.")
+def _get(url: str, limit: int, method: str = "GET", allowed=_allowed, site: str = "GitHub"):
+    if not allowed(url):
+        raise UpdateError(f"Only {site} is allowed for updates.")
     req = urllib.request.Request(url, method=method, headers={"User-Agent": "Dlr-updater"})
     try:
-        with _opener.open(req, timeout=30) as r:
-            if not _allowed(r.geturl()):
-                raise UpdateError("The download was sent somewhere other than GitHub, so it was stopped.")
+        with urllib.request.build_opener(_Restricted(allowed, site)).open(req, timeout=30) as r:
+            if not allowed(r.geturl()):
+                raise UpdateError(f"The download was sent somewhere other than {site}, so it was stopped.")
             data = r.read(limit + 1) if method == "GET" else b""
             if len(data) > limit:
                 raise UpdateError("The download was larger than expected, so it was stopped.")
             return r.geturl(), data
     except OSError:  # includes URLError
-        raise UpdateError("Couldn't reach GitHub. Check your internet connection.") from None
+        raise UpdateError(f"Couldn't reach {site}. Check your internet connection.") from None
 
 
 def latest_version() -> str:
@@ -189,8 +199,8 @@ def mark(key: str):
 
 
 def _write_atomic(path: Path, data: bytes):
-    UPDATE_DIR.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=UPDATE_DIR, prefix=".tmp-")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
@@ -270,5 +280,130 @@ def install_latest() -> tuple[bool, str]:
                                             "source": f"{RELEASES}/tag/{tag}"}).encode())
         active["pending"] = tag
         return True, f"Updated to {tag}. Restart Dlr to use it."
+    except UpdateError as e:
+        return False, f"{e} Keeping {current}."
+
+
+# ---- gallery-dl (photo posts) ----
+
+GDL_INDEX = "https://pypi.org/pypi/gallery-dl/json"
+GDL_DIR = app_dir() / "gallery-dl"
+GDL_WHEEL, GDL_MANIFEST = GDL_DIR / "gallery-dl.whl", GDL_DIR / "manifest.json"
+MAX_GDL = 20 * 1024 * 1024
+_GDL_VERSION = re.compile(r"\d+(\.\d+){1,3}")
+
+# What the gallery-dl child process uses; filled in by activate_gallery_dl().
+gdl_active = {"source": "built-in", "version": "", "note": ""}
+
+
+def gdl_vtuple(version: str) -> tuple:
+    return tuple(int(x) for x in version.split(".")) if version and _GDL_VERSION.fullmatch(version) else ()
+
+
+def gdl_builtin_version() -> str:
+    try:
+        return importlib.metadata.version("gallery-dl")
+    except importlib.metadata.PackageNotFoundError:
+        return ""
+
+
+def _gdl_manifest() -> dict:
+    """The saved gallery-dl update, if it's there, newer than the built-in one and undamaged."""
+    try:
+        if GDL_DIR.is_symlink() or GDL_WHEEL.is_symlink():
+            return {}
+        manifest = json.loads(GDL_MANIFEST.read_text(encoding="utf-8"))
+        version = manifest["version"]
+        if gdl_vtuple(version) <= gdl_vtuple(gdl_builtin_version()):
+            return {}
+        if _sha256(GDL_WHEEL) != manifest.get("sha256"):
+            for path in (GDL_WHEEL, GDL_MANIFEST):
+                path.unlink(missing_ok=True)
+            return {}
+        return manifest
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+
+
+def gallery_dl_version() -> str:
+    """The gallery-dl the next photo download will use."""
+    return _gdl_manifest().get("version") or gdl_builtin_version()
+
+
+def activate_gallery_dl() -> dict:
+    """Use the downloaded gallery-dl if it's newer and healthy, else the built-in one.
+    Must run before gallery_dl is imported (only in the gallery-dl child process)."""
+    gdl_active.update(source="built-in", version=gdl_builtin_version(), note="")
+    if not getattr(sys, "frozen", False):
+        return gdl_active  # running from source: pip manages gallery-dl
+    manifest = _gdl_manifest()
+    if not manifest:
+        return gdl_active
+    sys.path.insert(0, str(GDL_WHEEL))
+    try:
+        import gallery_dl.version
+        if gallery_dl.version.__version__ != manifest["version"]:
+            raise ImportError("version mismatch")
+        gdl_active.update(source="updated", version=manifest["version"])
+    except Exception:
+        sys.path.remove(str(GDL_WHEEL))
+        for name in [m for m in sys.modules if m == "gallery_dl" or m.startswith("gallery_dl.")]:
+            del sys.modules[name]
+        for path in (GDL_WHEEL, GDL_MANIFEST):
+            path.unlink(missing_ok=True)
+        gdl_active["note"] = f"gallery-dl {manifest['version']} didn't load, so the built-in version is used."
+    return gdl_active
+
+
+def gdl_latest() -> tuple[str, str, str]:
+    """(version, wheel URL, SHA-256) of the newest gallery-dl release, from PyPI."""
+    _, data = _get(GDL_INDEX, 8 * 1024 * 1024, allowed=_allowed_pypi, site="PyPI")
+    try:
+        index = json.loads(data)
+        version = index["info"]["version"]
+        wheel = next(u for u in index["urls"] if u.get("packagetype") == "bdist_wheel"
+                     and u.get("filename") == f"gallery_dl-{version}-py3-none-any.whl")
+        digest = wheel["digests"]["sha256"].lower()
+    except (ValueError, KeyError, TypeError, StopIteration):
+        raise UpdateError("Couldn't read the latest gallery-dl release from PyPI.") from None
+    if not _GDL_VERSION.fullmatch(version) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        raise UpdateError("Couldn't read the latest gallery-dl release from PyPI.")
+    if not _allowed_pypi(wheel.get("url", "")):
+        raise UpdateError("The gallery-dl download isn't on PyPI, so it was stopped.")
+    return version, wheel["url"], digest
+
+
+def verify_gallery_dl(data: bytes, expected: str, version: str) -> str:
+    """Check a downloaded gallery-dl wheel against PyPI's SHA-256 and its own version."""
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != expected:
+        raise UpdateError("The download didn't match the official checksum, so it was rejected.")
+    try:
+        import io
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            text = z.read("gallery_dl/version.py").decode("utf-8")
+    except (zipfile.BadZipFile, KeyError, UnicodeDecodeError):
+        raise UpdateError("The download isn't a valid gallery-dl file, so it was rejected.") from None
+    m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", text)
+    if not m or m.group(1) != version:
+        raise UpdateError("The downloaded gallery-dl has the wrong version inside, so it was rejected.")
+    return digest
+
+
+def install_latest_gallery_dl() -> tuple[bool, str]:
+    """Download, verify and save the newest gallery-dl. Returns (changed, message)."""
+    current = gallery_dl_version()
+    try:
+        version, url, expected = gdl_latest()
+        if gdl_vtuple(version) <= gdl_vtuple(current):
+            return False, f"Up to date ({current})"
+        _, data = _get(url, MAX_GDL, allowed=_allowed_pypi, site="PyPI")
+        digest = verify_gallery_dl(data, expected, version)
+        if GDL_DIR.is_symlink():
+            raise UpdateError("The update folder is a link to somewhere else, so nothing was installed.")
+        _write_atomic(GDL_WHEEL, data)
+        _write_atomic(GDL_MANIFEST, json.dumps({"version": version, "sha256": digest,
+                                                "source": url}).encode())
+        return True, f"Updated to {version}."
     except UpdateError as e:
         return False, f"{e} Keeping {current}."

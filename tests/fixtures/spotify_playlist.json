@@ -1,0 +1,7 @@
+{"props": {"pageProps": {"state": {"data": {"entity": {
+  "type": "playlist", "name": "Road Trip", "subtitle": "Someone",
+  "coverArt": {"sources": [{"url": "https://image-cdn-fa.spotifycdn.com/image/pl", "width": 300}]},
+  "trackList": [
+    {"uri": "spotify:track:0000000000000000000004", "title": "Song A", "subtitle": "Artist A", "duration": 210000},
+    {"uri": "spotify:episode:0000000000000000000005", "title": "A podcast", "subtitle": "Show", "duration": 9000}
+  ]}}}}}}

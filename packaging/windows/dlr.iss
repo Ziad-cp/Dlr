@@ -1,5 +1,5 @@
 ; Windows installer for Dlr (Inno Setup 6): turns dist\Dlr\ (from build.py) into one
-; Dlr-Windows-Setup.exe that anyone can double-click.
+; Dlr-windows-setup.exe that anyone can double-click.
 ;
 ;   iscc /DAppVersion=1.1.0 packaging\windows\dlr.iss
 ;
@@ -34,7 +34,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 CloseApplications=yes
 OutputDir=..\..\dist
-OutputBaseFilename=Dlr-Windows-Setup
+OutputBaseFilename=Dlr-windows-setup
 
 [Tasks]
 Name: "desktopicon"; Description: "Put a Dlr shortcut on the desktop"
