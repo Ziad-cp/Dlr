@@ -70,6 +70,17 @@ class QualityTest(unittest.TestCase):
         picked = list(dl._pick_video({"formats": formats}))[0]
         self.assertEqual(picked["format_id"], "vp9+opus")
 
+    def test_hardware_h264_first_then_software(self):
+        timing = {"fps": 25.0, "peak_fps": 25.0}
+        with mock.patch.object(dl.sys, "platform", "darwin"):
+            attempts = dl._encode_args(timing)
+        codecs = [a[a.index("-c:v") + 1] for a in attempts]
+        self.assertEqual(codecs[:2], ["h264_videotoolbox", "libx264"])
+        self.assertIn("80", attempts[0])  # high-quality setting
+        self.assertNotIn("hevc_videotoolbox", codecs)
+        with mock.patch.object(dl.sys, "platform", "win32"):
+            self.assertEqual({a[a.index("-c:v") + 1] for a in dl._encode_args(timing)}, {"libx264"})
+
     def test_mp3_is_320k(self):
         opts = dl.build_opts("mp3", "/tmp")
         self.assertEqual(opts["postprocessors"][0]["preferredquality"], "320")

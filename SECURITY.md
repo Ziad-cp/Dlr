@@ -91,7 +91,8 @@ also lists the SHA-256 of every download in `SHA256SUMS.txt`.
 - **Saved:** only `config.json`, holding the download folder and the **Logins from** setting
   (`~/Library/Application Support/Dlr/` on Mac). No history, links, titles or cookies.
 - **No logs, no debug output, no caches:** yt-dlp's cache is off, and pip uses no cache.
-  WebKit's own (empty) data folders are removed when the app quits and when it starts.
+  WebKit's own (empty) data folders are removed when the app quits, however it quits (closing
+  the window, ⌘Q, Dock › Quit, logging out), and again when it starts.
 - **Browser logins, only when a site asks for one:** if a site answers "log in", "not a bot",
   "private" or "too many requests", the download is retried once with yt-dlp's
   `cookiesfrombrowser`, using the browser chosen in Settings › **Logins from**. This is
