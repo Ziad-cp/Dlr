@@ -19,40 +19,82 @@
 
 | Platform | Download | Requires |
 | --- | --- | --- |
-| **Windows** | [Dlr-Windows-Setup.exe](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Windows-Setup.exe) | Windows 10 or 11 |
-| **macOS** (Apple silicon) | [Dlr-Mac-Apple-Silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Apple-Silicon.dmg) | M1 or newer |
-| **macOS** (Intel) | [Dlr-Mac-Intel.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Mac-Intel.dmg) | Intel Mac |
-| **Android** | [Dlr-Android.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Android.apk) | Android 10 or newer |
+| **macOS** (Apple chip) | [Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg) | M1 or newer |
+| **macOS** (Intel) | [Dlr-mac-intel.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-intel.dmg) | Intel Mac |
+| **Windows** | [Dlr-windows-setup.exe](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-windows-setup.exe) | Windows 10 or 11 |
+| **Android** | [Dlr-android.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android.apk) | Android 10 or newer |
 
-Everything is included: no extra software to install. Older 32-bit Android phones:
-[Dlr-Android-32-bit.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-Android-32-bit.apk).
+These links always give the newest version. Older 32-bit Android phones:
+[Dlr-android-32-bit.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android-32-bit.apk).
 All versions are on the [releases page](https://github.com/Ziad-cp/Dlr/releases).
 
-> [!NOTE]
-> Dlr isn't signed with a paid Apple or Microsoft certificate, so your system asks you to
-> confirm the first launch:
-> - **Windows:** on "Windows protected your PC", click **More info › Run anyway**.
-> - **macOS:** open Dlr once, then go to **System Settings › Privacy & Security** and click
->   **Open Anyway**.
-> - **Android:** allow installing from your browser when asked. If Play Protect warns you,
->   choose **More details › Install anyway**.
+Everything is included: no extra software to install. On the Mac, the .dmg is the only way
+to install Dlr.
+
+### First launch on a Mac
+
+Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it once:
+
+1. Open the .dmg and drag **Dlr** into **Applications**.
+2. Open Dlr. macOS says it can't check it for malicious software: click **Done**.
+3. Open **System Settings › Privacy & Security**, scroll down to **Security**, and click
+   **Open Anyway** next to "Dlr was blocked".
+4. Enter your Mac password, then click **Open**. From now on Dlr opens normally.
+
+Not sure which Mac you have? Apple menu › **About This Mac**: "Chip: Apple M…" means Apple
+chip; "Processor: … Intel" means Intel.
+
+**Windows:** on "Windows protected your PC", click **More info › Run anyway**.
+**Android:** allow installing from your browser when asked. If Play Protect warns you,
+choose **More details › Install anyway**.
 
 ## Features
 
 - **Paste and go.** Copy a link and switch to Dlr: it fills in and looks up the video by itself.
-- **Video or MP3.** Highest-quality MP4 that plays everywhere (including iPhone), or MP3 at the
-  best quality (variable bitrate).
-- **Choose a quality.** Best available, 1080p or 720p.
-- **Android share menu.** In any app, tap **Share › Dlr**.
-- **Spotify songs.** Finds the matching public YouTube upload and tags the MP3 with the song's
-  title, artist and cover art.
+- **Video or MP3.** An MP4 that plays everywhere (including iPhone): H.264 when the site has it
+  at that quality, otherwise the best version converted to MP4. Or an MP3 at 320 kbps.
+- **Choose a quality.** Only the qualities that video really has.
+- **Photo posts too.** TikTok slideshows (all photos, plus the sound as an MP3), Instagram
+  photo posts and carousels (every photo and video), Reddit galleries: same Download button,
+  saved into one folder per post.
+- **Share links.** `vm.tiktok.com`, `instagram.com/share/…`, `reddit.com/r/…/s/…` and `redd.it`
+  links are followed to the post first.
+- **Spotify songs, albums and playlists.** Each song is matched on YouTube Music and saved as a
+  320 kbps MP3 with its title, artist, album and cover art. No Spotify account or key needed.
+  (Spotify's public pages list a playlist's first 100 songs.)
 - **Queue.** Add several links; they download one after another.
-- **Checked files.** Every file is checked for picture and sound, with an automatic retry.
-- **Logins when needed.** If a site asks you to log in or thinks you're a bot, Dlr retries once
-  with your browser's login (Settings › **Logins from**, or **Never**). Cookies are never saved.
-- **Setup check.** On Mac and Windows, Dlr tells you at launch if Deno (needed for YouTube) is
-  missing, with the command to install it.
+- **Checked files.** Every video is checked for picture and sound. If one version fails,
+  another is tried. After a failed download Dlr updates its engines, and if a newer one
+  arrived, tries once more with it.
+- **Logins only if you want them.** Off by default. If you turn on **Logins from** in Settings
+  and a site asks you to log in, Dlr retries once with that browser's login. Cookies are never
+  saved.
 - **Private.** No account, no history, no logs, no tracking.
+
+### What works where
+
+| | Mac | Windows | Android |
+| --- | :-: | :-: | :-: |
+| Videos from YouTube, TikTok, Instagram, Reddit, X, Facebook and 1,000+ sites | ✓ | ✓ | ✓ |
+| MP3 | ✓ 320 kbps | ✓ 320 kbps | ✓ 192 kbps |
+| Pick a quality | ✓ | ✓ | – |
+| Photo posts, carousels, slideshows | ✓ | ✓ | – |
+| Spotify songs, albums, playlists | ✓ | ✓ | – |
+| Logins from your browser | ✓ | ✓ | – |
+| Share menu (**Share › Dlr**) | – | – | ✓ |
+
+The Mac and Windows apps share the same code. Downloads from each site are tested on a Mac
+(`tests/live_links.py`); the Windows app is built and tested automatically on GitHub.
+
+### Sites that need a login
+
+Some content is only shown to logged-in visitors. Logins are off by default, so Dlr says
+"… needs login — turn on logins in settings". To download it, choose a browser under
+**Logins from** in Settings and be logged in to the site in that browser:
+
+- **Reddit** now refuses most downloads from people who aren't logged in.
+- **Instagram** stories and highlights, and some older single-photo posts.
+- Private, age-restricted or "confirm you're not a bot" videos on any site.
 
 ## iPhone and iPad
 
@@ -63,11 +105,13 @@ iPhone. Send them over AirDrop, or save them to iCloud Drive and use **Save Vide
 
 ## Keeping it working
 
-Sites change often, so Dlr keeps its download engine up to date: on Mac and Windows it updates
-on its own at most once a day, and again after a failed download. A dot on the Settings icon
-means a new version is waiting for a restart. **Settings › Update** (or **Update** on Android)
-does it at any time. Updates come only from the official
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) releases and are verified before use.
+Sites change often, so Dlr keeps its download engines up to date: on Mac and Windows it updates
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) and [gallery-dl](https://github.com/mikf/gallery-dl)
+on its own at most once a day, and again after a failed download (at most once an hour; if a
+newer version arrived, it tries that download once more). A dot on the Settings icon means a new yt-dlp is waiting for a restart.
+**Settings › Update** (or **Update** on Android) does it at any time. Updates come only from
+the official releases (yt-dlp from GitHub, gallery-dl from PyPI) and are verified against
+their published checksums before use.
 
 ## Security and privacy
 
@@ -76,7 +120,7 @@ Dlr treats everything from the internet as untrusted:
 - No open network ports; the app runs no web server.
 - Links can never reach your computer or local network (SSRF protection).
 - Nothing runs through a shell; downloaded files can't overwrite your files.
-- Updates and the bundled FFmpeg are verified against official checksums or signatures.
+- Updates and the bundled FFmpeg and Deno are verified against official checksums or signatures.
 
 It stores only your download folder and **Logins from** settings. Details, limits and the full list of network
 connections: [SECURITY.md](SECURITY.md).
@@ -89,10 +133,11 @@ setup and publishing releases.
 ## License
 
 [MIT](LICENSE) © 2026 Ziad Gahlan. Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp),
-[FFmpeg](https://ffmpeg.org) and [pywebview](https://pywebview.flowrl.com/). The released apps
-bundle GPL-licensed components (FFmpeg, and
+[gallery-dl](https://github.com/mikf/gallery-dl), [FFmpeg](https://ffmpeg.org),
+[Deno](https://deno.com) and [pywebview](https://pywebview.flowrl.com/). The released apps
+bundle GPL-licensed components (FFmpeg and gallery-dl, and
 [youtubedl-android](https://github.com/yausername/youtubedl-android) on Android), so those
 binaries are distributed under the GPL v3. License notices ship inside each app.
 
-Only download content you have the right to download. Private, login-only and copy-protected
-(DRM) videos aren't supported.
+Only download content you have the right to download. Copy-protected (DRM) services such as
+Netflix or Spotify's own audio aren't supported.

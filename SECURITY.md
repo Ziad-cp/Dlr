@@ -30,13 +30,24 @@ there, never the rest of the clipboard.
 **Links.** Only `http`/`https`, at most 2,048 characters, no control or invisible characters
 (including bidi tricks), no `user:password@` logins, and never this computer or the local
 network (`localhost`, `127.x`, `10.x`, `192.168.x`, `169.254.x`, `*.local`, IPv6 local
-ranges). Names are resolved and checked too. The same checks apply to thumbnails and cover
-art, including after redirects, with size caps.
+ranges). Names are resolved and checked too. The same checks apply to thumbnails, cover
+art and photos, including after redirects, with size caps. Share links (`vm.tiktok.com`,
+`instagram.com/share/…`, `reddit.com/r/…/s/…`, `redd.it`) are followed before downloading, and
+every hop of their redirects is checked the same way (at most 5 hops). Tracking parameters
+(`igsh`, `utm_…`, TikTok's `_t`/`_d`…) are removed.
 
 **No shell, ever.** Nothing is run through a shell. yt-dlp is used as a library; FFmpeg and
 ffprobe get argument lists with absolute paths. FFmpeg may read only local files
 (`-protocol_whitelist file`) and only real audio/video containers, so a "video" that's really
 a playlist can't make it open other files or web addresses.
+
+gallery-dl (photo posts) runs in a separate process: Dlr starts its own binary with
+`--gallery-dl` and an argument list, with `--` right before the link so a link can never be
+read as an option. It gets `--config-ignore` (no gallery-dl settings from your home folder) and
+a private settings file inside the download's temporary folder: no cache on disk (an in-memory
+database), no download archive, no post-processors, no log or "unsupported" files. Its output
+is read in memory only. The same goes for `--job`, which Dlr uses to retry a failed download
+with a just-updated yt-dlp: the request goes in as JSON on stdin, never on a command line.
 
 **Files.** Downloads are written only inside the chosen folder:
 
@@ -56,8 +67,16 @@ because the page loads only local files, blocks inline and remote scripts, and e
 internet text.
 
 **Code that runs.** yt-dlp plugins (Python code it would otherwise load from folders in your
-home) are disabled. Dependencies come only from PyPI and Homebrew, are pinned to exact versions
-in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilities as of 1.0.0).
+home) are disabled, also inside the gallery-dl process. Python dependencies come only from PyPI,
+are pinned to exact versions in `requirements.txt`, and are checked with `pip-audit`.
+
+**Deno in the downloadable apps.** yt-dlp needs a JavaScript runtime to solve YouTube's
+challenges. The apps include Deno, fetched by `packaging/get_deno.py` from the official releases
+at `github.com/denoland/deno` for each chip. It must match the SHA-256 published with that
+release, and on a Mac also carry a valid Apple-issued code signature and be built for the right
+chip; it must run and be Deno 2 or newer, or the build stops. The app uses only its own Deno.
+yt-dlp runs it without network or file access; its update check and prompts are off, and its
+cache goes to a temporary folder that's deleted when Dlr quits.
 
 **FFmpeg in the downloadable apps.** The apps on the Releases page are built by GitHub Actions
 (`.github/workflows/build.yml`) and include FFmpeg, fetched by `packaging/get_ffmpeg.py` from
@@ -75,8 +94,9 @@ also lists the SHA-256 of every download in `SHA256SUMS.txt`.
   WebKit's own (empty) data folders are removed when the app quits and when it starts.
 - **Browser logins, only when a site asks for one:** if a site answers "log in", "not a bot",
   "private" or "too many requests", the download is retried once with yt-dlp's
-  `cookiesfrombrowser`, using the browser chosen in Settings › **Logins from** (default: your
-  default browser; **Never** turns it off). yt-dlp reads the cookies straight from the browser
+  `cookiesfrombrowser`, using the browser chosen in Settings › **Logins from**. This is
+  **off by default** (**Never**): until you choose a browser, Dlr never reads any cookies and
+  tells you when something needs a login. yt-dlp reads the cookies straight from the browser
   into memory for that one download; Dlr never copies, saves or logs them, and they're sent only
   to the sites they belong to. macOS asks first: Keychain access for Chrome-based browsers, Full
   Disk Access for Safari.
@@ -86,18 +106,21 @@ also lists the SHA-256 of every download in `SHA256SUMS.txt`.
 - **Network connections (complete list):**
   1. The site you download from: its pages, video/audio servers and thumbnails (for example
      `youtube.com`, `*.googlevideo.com`, `i.ytimg.com`; `tiktok.com`, `*.tiktokcdn-eu.com`).
-     For Spotify links: `open.spotify.com` for the song's public info, `*.spotifycdn.com`
-     for the cover, then YouTube to find and download the song.
-  2. DNS lookups for the link's host, from the local-network check.
+     For Spotify links: `open.spotify.com` for the public info of the song, album or playlist
+     (its embed pages: no account or key), `*.spotifycdn.com` for covers, then YouTube Music
+     and YouTube to find and download each song.
+  2. DNS lookups for the link's host, from the local-network check, and for share links, each
+     address they redirect to.
   3. GitHub, for yt-dlp updates: at most once a day at launch, after a failed download (at most
      once an hour), and when you press **Update**: `github.com/yt-dlp/yt-dlp/releases/latest`,
      then the release files from `github.com` / `*.githubusercontent.com` if there's a new one.
      (Running from source, updates use `pypi.org` and `files.pythonhosted.org`, or Homebrew's
      servers if yt-dlp came from `brew`.)
+  4. PyPI, for gallery-dl updates, at the same times: `pypi.org/pypi/gallery-dl/json`, then the
+     release file from `files.pythonhosted.org` if there's a new one.
 
   Nothing else: no analytics, telemetry, crash reports or update checks. The window itself makes
-  no connections. If Deno is installed, yt-dlp may run it (sandboxed: no network, no files) to
-  solve YouTube's signature puzzles; its update check is switched off.
+  no connections. Deno (run by yt-dlp for YouTube) has no network access.
 
 ## yt-dlp updates in the packaged app
 
@@ -118,6 +141,21 @@ The app has its own yt-dlp sealed inside. Updates replace it safely:
 5. **When:** on its own at most once a day at launch, and after a failed download (at most once
    an hour), since a failure often means the site changed; or when you press **Update**. A dot on
    the Settings icon shows a new version waiting for a restart.
+
+## gallery-dl updates in the packaged app
+
+gallery-dl is updated the same way as yt-dlp, from its official releases on PyPI (its GitHub
+releases have no files attached):
+
+1. **Source:** `pypi.org` and `files.pythonhosted.org` only, over HTTPS, with redirects allowed
+   only between them.
+2. **Checksum:** the release's `.whl` file must match the SHA-256 PyPI lists for it, and the
+   version written inside it must match the release, or it's thrown away.
+3. **Storage:** saved atomically to `~/Library/Application Support/Dlr/gallery-dl/` with a
+   manifest.
+4. **Use:** gallery-dl always runs in its own process, which uses the update only if it's newer
+   than the built-in gallery-dl, still matches its checksum and loads cleanly. So a new version
+   is used at once, with no restart.
 
 ## Android app
 
@@ -150,11 +188,13 @@ running while Dlr is open; if you leave the app, Android may stop a long downloa
 
 ## Known limits
 
-- **Redirects inside yt-dlp:** a public site could still redirect yt-dlp's own requests to a
-  local address (or use DNS rebinding). The checks cover the link you paste, thumbnails and
-  covers, not yt-dlp's internal redirects.
+- **Redirects inside yt-dlp and gallery-dl:** a public site could still redirect their own
+  requests to a local address (or use DNS rebinding). The checks cover the link you paste, share
+  links, thumbnails, covers and photos Dlr fetches itself, not the engines' internal redirects.
+- **Impersonation:** for TikTok, yt-dlp's `--impersonate` (curl_cffi) makes its requests look
+  like a normal browser's, because TikTok refuses plain ones.
 - **`'unsafe-eval'` in the CSP:** see the trade-off above.
-- **Updates trust GitHub:** the checksum comes from the same official release page as the file,
+- **Updates trust GitHub and PyPI:** the checksum comes from the same official release page as the file,
   so it proves the download is intact and is what yt-dlp published there. It doesn't protect
   against GitHub or the yt-dlp project itself being compromised; the release's GPG signature
   isn't checked.
@@ -164,8 +204,8 @@ running while Dlr is open; if you leave the app, Android may stop a long downloa
 - **Ad-hoc signature:** the Mac app is signed "ad hoc", not notarized by Apple, so macOS asks
   you to confirm the first launch (System Settings › Privacy & Security › Open Anyway). The
   Windows installer isn't code-signed either, so SmartScreen shows a warning first.
-- **Bundled FFmpeg trusts its builders:** the checks prove the FFmpeg download is intact and
-  (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
+- **Bundled FFmpeg and Deno trust their builders:** the checks prove the downloads are intact
+  and (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
 - **Clipboard:** read when the window comes to the front (only a link is used).
 - **Windows:** built and tested automatically on GitHub's Windows computers, but less used than
   the Mac app. Settings live in `%APPDATA%\Dlr\`.

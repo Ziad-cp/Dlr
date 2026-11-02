@@ -32,3 +32,6 @@ iphone/
 
 # FFmpeg downloaded for the app (packaging/get_ffmpeg.py)
 packaging/ffmpeg/
+
+# Deno downloaded for the app (packaging/get_deno.py)
+packaging/deno/

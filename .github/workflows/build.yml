@@ -4,6 +4,8 @@
 #             Android app on an Android emulator). They can be downloaded from the run's
 #             "Artifacts" for testing.
 # A tag v1.2.3: also publishes them as a GitHub Release, where anyone can download them.
+#             The file names never change between versions, so these links always give
+#             the newest one: https://github.com/Ziad-cp/Dlr/releases/latest/download/<file>
 #             Either push a tag (git tag v1.1.0 && git push origin v1.1.0), or on GitHub:
 #             Releases › Draft a new release › tag v1.1.0 › Publish. The files are added
 #             about 10 minutes later. The tag must match __version__ in app.py.
@@ -31,13 +33,13 @@ jobs:
         include:
           - name: Mac (Apple chip)
             os: macos-15
-            file: Dlr-Mac-Apple-Silicon.dmg
+            file: Dlr-mac-apple-silicon.dmg
           - name: Mac (Intel)
             os: macos-15-intel
-            file: Dlr-Mac-Intel.dmg
+            file: Dlr-mac-intel.dmg
           - name: Windows
             os: windows-2022
-            file: Dlr-Windows-Setup.exe
+            file: Dlr-windows-setup.exe
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -52,10 +54,18 @@ jobs:
       - name: Install Python packages
         run: python -m pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
+      - name: Unit tests (offline)
+        run: python -m unittest discover -s tests -t . -v
+
       - name: Download and check FFmpeg
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python packaging/get_ffmpeg.py
+
+      - name: Download and check Deno
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python packaging/get_deno.py
 
       - name: Build the app
         run: python build.py
@@ -74,14 +84,17 @@ jobs:
           & $iscc "/DAppVersion=$version" packaging\windows\dlr.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Test that the app starts and finds its FFmpeg
+      - name: Test that the app starts and finds its FFmpeg, Deno and gallery-dl
         timeout-minutes: 5
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
           "$APP" --version 2>&1 | tee version.txt
           grep -q "^Dlr " version.txt
           grep "^FFmpeg: " version.txt | grep -qv "not found"
-          grep -Eq "Frameworks/ffmpeg|_internal.ffmpeg" version.txt   # its own FFmpeg, not one on the computer
+          grep -Eq "^FFmpeg: .*(Frameworks/ffmpeg|_internal.ffmpeg)" version.txt   # its own, not one on the computer
+          grep -Eq "^Deno: .*(Frameworks/deno|_internal.deno)" version.txt
+          grep -Eq "^gallery-dl: [0-9]" version.txt
+          grep -q "^Impersonation (TikTok): yes" version.txt
 
       - name: Test real downloads (video with conversion to H.264, and MP3)
         timeout-minutes: 10
@@ -102,13 +115,33 @@ jobs:
           [ "$ok" = 1 ]
           ls test-download/*.mp4 test-download/*.mp3
 
-      - name: Test a YouTube download (YouTube often blocks GitHub's computers)
-        continue-on-error: true
-        timeout-minutes: 5
+      # YouTube, TikTok, Instagram and Reddit block GitHub's computers (datacenter addresses),
+      # so these downloads can't be tested here: the step shows as skipped (grey), never as a
+      # green tick. Run tests/live_links.py on a Mac instead. To run it here anyway (e.g. on a
+      # self-hosted runner), set the repository variable RUN_SOCIAL_TESTS to true.
+      - name: Social-media link tests — SKIPPED on GitHub (sites block datacenter IPs; run tests/live_links.py on a Mac)
+        if: vars.RUN_SOCIAL_TESTS == 'true' && runner.os == 'macOS'
+        timeout-minutes: 60
+        run: CI= python tests/live_links.py --app dist/Dlr.app
+
+      - name: Say which tests were skipped
+        if: vars.RUN_SOCIAL_TESTS != 'true'
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
-          "$APP" --download "https://www.youtube.com/watch?v=jNQXAC9IVRw" video "$PWD/test-download" 2>&1 | tee yt.txt
-          ! grep -q "^ERROR" yt.txt
+          echo "::notice title=Social-media tests skipped::YouTube, TikTok, Instagram, Reddit, X, Facebook and Spotify downloads aren't tested on GitHub (these sites block datacenter IPs). Run python tests/live_links.py on a Mac."
+          {
+            echo "### Skipped: social-media downloads"
+            echo "These sites block GitHub's computers, so they're **not tested here** (not passed either)."
+            echo "Run \`python tests/live_links.py --app dist/Dlr.app\` on a Mac before a release."
+            echo
+            echo "| Site | Cases | Status |"
+            echo "| --- | --- | --- |"
+            echo "| YouTube | video, picked quality, MP3 | skipped |"
+            echo "| TikTok | video, slideshow, share link | skipped |"
+            echo "| Instagram | reel, photo, carousel, share link | skipped |"
+            echo "| Reddit | video with sound, gallery, share link | skipped |"
+            echo "| X, Facebook | video | skipped |"
+            echo "| Spotify | track, album, playlist | skipped |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Open the app and take a screenshot (Mac)
         if: runner.os == 'macOS'
@@ -193,8 +226,8 @@ jobs:
         run: |
           gradle -p android --no-daemon testDebugUnitTest assembleRelease
           mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/Dlr-Android.apk
-          cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/Dlr-Android-32-bit.apk
+          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/Dlr-android.apk
+          cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/Dlr-android-32-bit.apk
           ls -la dist
 
       - name: Enable the emulator's hardware acceleration
@@ -232,7 +265,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: Dlr-Android
+          name: Dlr-android
           path: dist/*.apk
           if-no-files-found: error
 
@@ -268,15 +301,17 @@ jobs:
 
           | Your computer | Download |
           | --- | --- |
-          | **Windows 10 or 11** | **Dlr-Windows-Setup.exe** |
-          | **Mac with an Apple chip** (M1, M2, M3, M4…) | **Dlr-Mac-Apple-Silicon.dmg** |
-          | **Mac with an Intel chip** (older Macs) | **Dlr-Mac-Intel.dmg** |
-          | **Android phone or tablet** (Android 10 or newer) | **Dlr-Android.apk** |
-          | Older Android phones (32-bit) | Dlr-Android-32-bit.apk |
+          | **Mac with an Apple chip** (M1, M2, M3, M4…) | **Dlr-mac-apple-silicon.dmg** |
+          | **Mac with an Intel chip** (older Macs) | **Dlr-mac-intel.dmg** |
+          | **Windows 10 or 11** | **Dlr-windows-setup.exe** |
+          | **Android phone or tablet** (Android 10 or newer) | **Dlr-android.apk** |
+          | Older Android phones (32-bit) | Dlr-android-32-bit.apk |
 
           Not sure which Mac you have? Click the Apple menu (top-left corner of the screen) › **About This Mac**. "Chip: Apple M…" means Apple chip; "Processor: … Intel" means Intel.
 
-          Everything Dlr needs is included. You don't need to install anything else.
+          **Mac, first launch:** open the .dmg and drag Dlr to Applications, then open Dlr. When macOS says it can't check Dlr, click **Done**, go to **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, enter your password, then click **Open**.
+
+          Everything Dlr needs is included (on the Mac: yt-dlp, gallery-dl, FFmpeg and Deno). You don't need to install anything else.
           Step-by-step instructions: https://github.com/Ziad-cp/Dlr#download-and-install
           EOF
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

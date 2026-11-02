@@ -1,0 +1,9 @@
+{"props": {"pageProps": {"state": {"data": {"entity": {
+  "type": "album", "name": "Epic", "subtitle": "AL/SO",
+  "visualIdentity": {"image": [{"url": "https://image-cdn-fa.spotifycdn.com/image/small", "maxWidth": 64},
+                               {"url": "https://image-cdn-fa.spotifycdn.com/image/big", "maxWidth": 640}]},
+  "trackList": [
+    {"uri": "spotify:track:0000000000000000000001", "title": "Epic", "subtitle": "AL/SO, Impex", "duration": 200000, "isPlayable": true},
+    {"uri": "spotify:track:0000000000000000000002", "title": "House Party", "subtitle": "AL/SO, Impex", "duration": 180500, "isPlayable": true},
+    {"uri": "spotify:track:0000000000000000000003", "title": "Gone", "subtitle": "AL/SO", "duration": 1000, "isPlayable": false}
+  ]}}}}}}

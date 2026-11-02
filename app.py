@@ -3,17 +3,23 @@
 A pywebview window shows the HTML UI in ui/. Its JavaScript calls the public
 methods of Api below through window.pywebview.api.
 """
-import functools
-import logging
-import os
-import re
-import shutil
-import subprocess
 import sys
-import threading
-from pathlib import Path
 
-import webview
+if __name__ == "__main__" and sys.argv[1:2] == ["--gallery-dl"]:
+    # Dlr starting itself to run gallery-dl (see gallery.py): nothing else is loaded.
+    import gallery
+    sys.exit(gallery.child_main(sys.argv[2:]))
+
+import functools  # noqa: E402
+import logging  # noqa: E402
+import os  # noqa: E402
+import re  # noqa: E402
+import shutil  # noqa: E402
+import subprocess  # noqa: E402
+import threading  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+import webview  # noqa: E402
 
 # Must run before anything imports yt_dlp: picks the verified downloaded yt-dlp if it's newer.
 import updater
@@ -25,10 +31,10 @@ import config  # noqa: E402
 try:
     import downloader as dl  # noqa: E402
 except ImportError as e:
-    if getattr(e, "name", "") != "yt_dlp" or getattr(sys, "frozen", False):
+    if getattr(e, "name", "") not in ("yt_dlp", "gallery_dl") or getattr(sys, "frozen", False):
         raise
-    # Running from source without yt-dlp (the packaged app always has it inside).
-    sys.exit("yt-dlp isn't installed. Install it in Terminal with:\n"
+    # Running from source without the requirements (the packaged app always has them inside).
+    sys.exit(f"{e.name} isn't installed. Install everything in Terminal with:\n"
              "  .venv/bin/pip install -r requirements.txt")
 import safety  # noqa: E402
 
@@ -191,6 +197,8 @@ class Api:
             url = safety.check_url(url)
         except safety.UnsafeInput as e:
             return {"error": str(e)}
+        if mode != "mp3" and dl.spotify.is_spotify(url) and dl.spotify.is_collection(url):
+            return {"error": dl.SPOTIFY_LIST_MP3}
         job = self._downloader.add(url, mode, self._cfg["output_dir"], title, label)
         return {"id": job.id}
 
@@ -236,7 +244,7 @@ class Api:
 
     @_bridge(None)
     def update_ytdlp(self) -> dict:
-        changed, message = dl.update_ytdlp()
+        changed, message = dl.update_all()  # yt-dlp and gallery-dl
         return {"changed": changed, "message": message, "updateAvailable": "" if changed else updater.update_available()}
 
     @_bridge("")
@@ -280,19 +288,24 @@ def create_window(api: Api):
 
 
 def download_cli(args: list[str]) -> int:
-    """Command-line mode, no window:  Dlr --download LINK video|mp3 [FOLDER]
-    Same download code, checks and rules as the app. Prints the saved file's path."""
-    if len(args) not in (2, 3) or args[1] not in ("video", "mp3"):
-        print("Usage: --download LINK video|mp3 [FOLDER]")
+    """Command-line mode, no window:  Dlr --download LINK video|mp3|720 [FOLDER]
+    Same download code, checks and rules as the app. Prints the saved file's (or, for a post
+    with several files, folder's) path. DLR_LOGINS=off|auto|safari|... overrides the
+    Logins from setting for this run."""
+    quality = {"video": "best"}.get(args[1], args[1]) if len(args) > 1 else ""
+    if len(args) not in (2, 3) or not dl.valid_quality(quality):
+        print("Usage: --download LINK video|mp3|720 [FOLDER]")
         return 2
     cfg = config.load()
     folder = args[2] if len(args) == 3 else cfg["output_dir"]
+    browser = os.environ.get("DLR_LOGINS", cfg["cookies_browser"])
+    if browser not in config.BROWSERS:
+        browser = cfg["cookies_browser"]
     ffmpeg_dir = dl.find_ffmpeg()
     try:
         if not ffmpeg_dir:
             raise dl.DownloaderError(dl.FFMPEG_MISSING)
-        result = dl.download(args[0], "mp3" if args[1] == "mp3" else "best", folder, ffmpeg_dir,
-                             browser_setting=cfg["cookies_browser"])
+        result = dl.download(args[0], quality, folder, ffmpeg_dir, browser_setting=browser)
     except dl.DownloaderError as e:
         print(f"ERROR: {e}")
         return 1
@@ -306,13 +319,18 @@ def download_cli(args: list[str]) -> int:
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--download":
         sys.exit(download_cli(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "--job":
+        sys.exit(dl.job_child())  # a download in a fresh process, after an update (downloader.py)
     if len(sys.argv) > 1 and sys.argv[1] == "--version":
         note = f"\n{updater.active['note']}" if updater.active["note"] else ""
         print(f"Dlr {__version__}, yt-dlp {dl.ytdlp_version()} ({updater.active['source']}){note}")
+        print(f"gallery-dl: {updater.gallery_dl_version() or 'not found'}")
         print(f"FFmpeg: {dl.find_ffmpeg() or 'not found'}")
+        print(f"Deno: {dl.find_deno() or 'not found'}")
+        print(f"Impersonation (TikTok): {'yes' if dl.IMPERSONATE else 'no'}")
         sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "--update-ytdlp":
-        print(dl.update_ytdlp()[1])  # same as the Update button
+        print(dl.update_all()[1])  # same as the Update button
         sys.exit(0)
     if getattr(sys, "frozen", False):
         # The released app prints nothing anywhere.

@@ -533,13 +533,15 @@ function showUpdateDot(version) {
   $("settingsBtn").title = version ? `Settings · yt-dlp ${version}` : "Settings";
 }
 
-// Tools Dlr needs that aren't installed, with the command that installs each one.
+// Tools built into Dlr that are somehow missing: how to get them back (reinstalling the app,
+// or a command when running from source).
 function showSetupNotice(missing) {
   const box = $("setupNotice");
   box.hidden = !missing?.length;
-  box.innerHTML = (missing || []).map((t) =>
-    `<p><b>${esc(t.name)} isn't installed</b> (${esc(t.why)}). Install it in Terminal:</p>` +
-    `<code>${esc(t.command)}</code>`).join("") + (missing?.length ? "<p>Then restart Dlr.</p>" : "");
+  box.innerHTML = (missing || []).map((t) => t.command
+    ? `<p><b>${esc(t.name)} isn't installed</b> (${esc(t.why)}). Install it in Terminal:</p><code>${esc(t.command)}</code>`
+    : `<p><b>${esc(t.name)} is missing</b> (${esc(t.why)}). ${esc(t.fix)}</p>`).join("")
+    + (missing?.some((t) => t.command) ? "<p>Then restart Dlr.</p>" : "");
 }
 
 $("browserSelect").addEventListener("change", (e) => desktop.call("set_browser", e.target.value));

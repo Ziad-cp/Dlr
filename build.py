@@ -6,8 +6,8 @@ macOS   -> dist/Dlr.app  and  dist/Dlr-<version>.dmg
            (drag-to-Applications window; the app is signed "ad hoc" for this Mac)
 Windows -> dist/Dlr/Dlr.exe  (an app folder; packaging/windows/dlr.iss turns it into an installer)
 
-If packaging/ffmpeg/ exists (python packaging/get_ffmpeg.py), FFmpeg is copied into the app,
-so it works without installing FFmpeg. Otherwise the app uses an installed FFmpeg.
+If packaging/ffmpeg/ and packaging/deno/ exist (python packaging/get_ffmpeg.py and
+python packaging/get_deno.py), FFmpeg and Deno are copied into the app, so it needs nothing else.
 
 PyInstaller can't cross-compile: build the .exe on Windows and the .app on a Mac.
 The GitHub workflow in .github/workflows/build.yml does both.
@@ -27,7 +27,7 @@ NAME = "Dlr"
 BUNDLE_ID = "com.local.dlr"
 VERSION = re.search(r'__version__ = "([^"]+)"', (ROOT / "app.py").read_text()).group(1)
 ICON = ROOT / "packaging" / "icon.icns"
-FFMPEG = ROOT / "packaging" / "ffmpeg"
+TOOLS = {"ffmpeg": "FFmpeg", "deno": "Deno"}  # folder in packaging/ -> name
 
 
 def build_app():
@@ -39,6 +39,12 @@ def build_app():
         "--clean",
         "--add-data", f"{ROOT / 'ui'}{os.pathsep}ui",
         "--copy-metadata", "yt-dlp",  # so the app knows its built-in yt-dlp version
+        "--copy-metadata", "gallery-dl",
+        # Loaded by name at run time, so PyInstaller can't see them by itself.
+        "--collect-submodules", "gallery_dl",
+        "--collect-submodules", "yt_dlp_ejs",
+        "--collect-data", "yt_dlp_ejs",  # YouTube's challenge solver scripts, run by Deno
+        "--collect-all", "curl_cffi",  # for --impersonate (TikTok)
         "--distpath", str(ROOT / "dist"),
         "--workpath", str(ROOT / "build"),
         "--specpath", str(ROOT / "build"),
@@ -52,15 +58,18 @@ def build_app():
     PyInstaller.__main__.run(args)
 
 
-def add_ffmpeg(internal: pathlib.Path):
-    """Copy packaging/ffmpeg/ into the app, next to the app's own files (sys._MEIPASS)."""
-    if not FFMPEG.is_dir():
-        print("packaging/ffmpeg/ not found: the app will use an installed FFmpeg.")
-        return
-    target = internal / "ffmpeg"
-    shutil.rmtree(target, ignore_errors=True)
-    shutil.copytree(FFMPEG, target)
-    print(f"Included FFmpeg in {target.relative_to(ROOT)}")
+def add_tools(internal: pathlib.Path):
+    """Copy packaging/ffmpeg/ and packaging/deno/ into the app, next to the app's own files
+    (sys._MEIPASS)."""
+    for folder, name in TOOLS.items():
+        source = ROOT / "packaging" / folder
+        if not source.is_dir():
+            print(f"packaging/{folder}/ not found: the app won't include {name}.")
+            continue
+        target = internal / folder
+        shutil.rmtree(target, ignore_errors=True)
+        shutil.copytree(source, target)
+        print(f"Included {name} in {target.relative_to(ROOT)}")
 
 
 def finish_mac_app() -> pathlib.Path:
@@ -76,13 +85,15 @@ def finish_mac_app() -> pathlib.Path:
         "NSHumanReadableCopyright": "Personal use.",
     })
     info_path.write_bytes(plistlib.dumps(info))
-    add_ffmpeg(app / "Contents" / "Frameworks")
-    bundled = app / "Contents" / "Frameworks" / "ffmpeg"
-    if bundled.is_dir():
+    add_tools(app / "Contents" / "Frameworks")
+    for folder, name in TOOLS.items():
+        bundled = app / "Contents" / "Frameworks" / folder
+        if not bundled.is_dir():
+            continue
         # Only code may live in Frameworks (or signing fails), so the licence notice moves.
         notice = bundled / "NOTICE.txt"
         if notice.exists():
-            shutil.move(notice, app / "Contents" / "Resources" / "FFmpeg-NOTICE.txt")
+            shutil.move(notice, app / "Contents" / "Resources" / f"{name}-NOTICE.txt")
         for tool in bundled.iterdir():
             subprocess.run(["codesign", "--force", "--sign", "-", str(tool)], check=True)
     # Info.plist changed, so sign the bundle again (ad hoc: fine for your own Mac).
@@ -124,6 +135,6 @@ if __name__ == "__main__":
         image = make_dmg(built)
         print(f"\nBuilt {built.relative_to(ROOT)} (version {VERSION})\nBuilt {image.relative_to(ROOT)}")
     elif sys.platform == "win32":
-        add_ffmpeg(ROOT / "dist" / NAME / "_internal")
+        add_tools(ROOT / "dist" / NAME / "_internal")
         print(f"\nBuilt dist/{NAME}/{NAME}.exe (version {VERSION})")
     shutil.rmtree(ROOT / "build", ignore_errors=True)

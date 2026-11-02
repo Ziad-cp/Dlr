@@ -29,6 +29,8 @@ OLD_CONFIG = config_dir().parent / OLD_NAME / "config.json"
 
 # Browsers yt-dlp can read logins from; "auto" is the default browser, "off" never reads any.
 BROWSERS = ("auto", "safari", "chrome", "firefox", "brave", "edge", "opera", "vivaldi", "chromium", "off")
+# Logins are off until the user turns them on in Settings.
+DEFAULT_BROWSER = "off"
 
 
 def _default_folder() -> str:
@@ -65,7 +67,7 @@ def load() -> dict:
     if not isinstance(folder, str) or not os.path.isabs(folder) or not os.path.isdir(folder):
         folder = _default_folder()
     browser = stored.get("cookies_browser") if isinstance(stored, dict) else None
-    cfg = {"output_dir": folder, "cookies_browser": browser if browser in BROWSERS else "auto"}
+    cfg = {"output_dir": folder, "cookies_browser": browser if browser in BROWSERS else DEFAULT_BROWSER}
     if stored and stored != cfg:
         save(cfg)  # rewrite without anything an older version kept (history, tokens ...)
     return cfg
@@ -74,7 +76,7 @@ def load() -> dict:
 def save(cfg: dict) -> None:
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        data = {"output_dir": cfg["output_dir"], "cookies_browser": cfg.get("cookies_browser", "auto")}
+        data = {"output_dir": cfg["output_dir"], "cookies_browser": cfg.get("cookies_browser", DEFAULT_BROWSER)}
         CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except OSError:
         pass
