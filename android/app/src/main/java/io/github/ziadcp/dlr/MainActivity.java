@@ -100,12 +100,13 @@ public class MainActivity extends Activity {
         worker.execute(() -> {
             try {
                 Engine.init(this);
-                String ytdlp = Engine.ytdlpVersion();
+                // The buttons work as soon as the engine is ready; the version line can follow.
                 runOnUiThread(() -> {
-                    showVersion(ytdlp);
                     if (status.getText().toString().startsWith("Getting ready")) status.setText("");
-                    setBusy(false);
+                    setBusy(runningJob != null);
                 });
+                String ytdlp = Engine.ytdlpVersion();
+                runOnUiThread(() -> showVersion(ytdlp));
                 if (Engine.updateCheckDue(this)) {
                     runUpdate(true);
                 }
