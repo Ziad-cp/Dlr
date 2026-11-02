@@ -59,9 +59,13 @@ public class EngineTest {
                 Thread.sleep(500);
             }
             assertTrue(Engine.isReady());
-            Thread.sleep(2000);
+            // The screen enables its buttons a moment later; slow emulators need longer.
             final boolean[] enabled = new boolean[1];
-            scenario.onActivity(a -> enabled[0] = a.findViewById(R.id.video).isEnabled());
+            deadline = System.currentTimeMillis() + 60_000;
+            while (!enabled[0] && System.currentTimeMillis() < deadline) {
+                scenario.onActivity(a -> enabled[0] = a.findViewById(R.id.video).isEnabled());
+                if (!enabled[0]) Thread.sleep(250);
+            }
             assertTrue("Download Video button is enabled", enabled[0]);
         }
     }
