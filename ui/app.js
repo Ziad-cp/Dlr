@@ -516,18 +516,33 @@ async function refreshSettings() {
   const source = info.ytdlpSource === "updated" ? "updated" : "built in";
   $("ytdlpVersion").textContent = `Version ${info.ytdlp} · ${source}`;
   $("appVersion").textContent = `Dlr ${info.version}`;
+  $("browserSelect").value = info.browser;
+  $("browserAuto").textContent = info.defaultBrowser ? `Default browser (${info.defaultBrowser})` : "Default browser";
   // A note (e.g. an update that didn't load) or the waiting update; never shown in red.
   if (!$("updateMsg").textContent) {
-    $("updateMsg").textContent = info.ytdlpNote || (info.updateAvailable ? `Version ${info.updateAvailable} is available.` : "");
+    $("updateMsg").textContent = info.ytdlpNote
+      || (info.updatePending ? `Version ${info.updatePending} is ready. Restart Dlr to use it.` : "")
+      || (info.updateAvailable ? `Version ${info.updateAvailable} is available.` : "");
   }
-  showUpdateDot(info.updateAvailable);
+  showUpdateDot(info.updatePending || info.updateAvailable);
 }
 
-// Small dot on the settings icon when a newer yt-dlp exists. Nothing installs without a click.
-function showUpdateDot(available) {
-  $("settingsBtn").classList.toggle("has-update", !!available);
-  $("settingsBtn").title = available ? `Settings · yt-dlp ${available} available` : "Settings";
+// Small dot on the settings icon when a newer yt-dlp is ready (after a restart) or available.
+function showUpdateDot(version) {
+  $("settingsBtn").classList.toggle("has-update", !!version);
+  $("settingsBtn").title = version ? `Settings · yt-dlp ${version}` : "Settings";
 }
+
+// Tools Dlr needs that aren't installed, with the command that installs each one.
+function showSetupNotice(missing) {
+  const box = $("setupNotice");
+  box.hidden = !missing?.length;
+  box.innerHTML = (missing || []).map((t) =>
+    `<p><b>${esc(t.name)} isn't installed</b> (${esc(t.why)}). Install it in Terminal:</p>` +
+    `<code>${esc(t.command)}</code>`).join("") + (missing?.length ? "<p>Then restart Dlr.</p>" : "");
+}
+
+$("browserSelect").addEventListener("change", (e) => desktop.call("set_browser", e.target.value));
 
 async function checkForUpdate() {
   showUpdateDot(await desktop.call("update_status"));
@@ -562,6 +577,7 @@ async function init(backend) {
   state.backend = backend;
   state.env = await backend.info();
   document.body.classList.add(backend.kind);
+  showSetupNotice(state.env.missing);
   el.fieldIcon.innerHTML = LINK_ICON;
   for (const mode of MODES) renderButton(mode, null);
 

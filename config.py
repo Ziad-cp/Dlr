@@ -1,6 +1,7 @@
-"""The app's only saved data: the download folder, in config.json in the user's app-data folder.
+"""The app's only saved data: the download folder and which browser's login to use, in
+config.json in the user's app-data folder.
 
-Nothing else is ever stored: no history, no links, no titles. Anything else found in the
+Nothing else is ever stored: no history, no links, no titles, no cookies. Anything else found in the
 file (e.g. from older versions) is erased the next time the app starts.
 """
 import json
@@ -24,6 +25,10 @@ def config_dir() -> Path:
 
 CONFIG_PATH = config_dir() / "config.json"
 OLD_CONFIG = config_dir().parent / OLD_NAME / "config.json"
+
+
+# Browsers yt-dlp can read logins from; "auto" is the default browser, "off" never reads any.
+BROWSERS = ("auto", "safari", "chrome", "firefox", "brave", "edge", "opera", "vivaldi", "chromium", "off")
 
 
 def _default_folder() -> str:
@@ -59,7 +64,8 @@ def load() -> dict:
     folder = stored.get("output_dir") if isinstance(stored, dict) else None
     if not isinstance(folder, str) or not os.path.isabs(folder) or not os.path.isdir(folder):
         folder = _default_folder()
-    cfg = {"output_dir": folder}
+    browser = stored.get("cookies_browser") if isinstance(stored, dict) else None
+    cfg = {"output_dir": folder, "cookies_browser": browser if browser in BROWSERS else "auto"}
     if stored and stored != cfg:
         save(cfg)  # rewrite without anything an older version kept (history, tokens ...)
     return cfg
@@ -68,6 +74,7 @@ def load() -> dict:
 def save(cfg: dict) -> None:
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CONFIG_PATH.write_text(json.dumps({"output_dir": cfg["output_dir"]}, indent=2), encoding="utf-8")
+        data = {"output_dir": cfg["output_dir"], "cookies_browser": cfg.get("cookies_browser", "auto")}
+        CONFIG_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
     except OSError:
         pass

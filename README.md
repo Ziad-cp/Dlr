@@ -34,7 +34,10 @@ The full threat model and its limits are in [SECURITY.md](SECURITY.md). In short
 - **The card:** thumbnail, title, duration, site and quality badges, with two buttons:
   - **Download Video**: the highest quality, as an MP4 that plays in QuickTime, Photos and on
     iPhone (H.264/HEVC + AAC, metadata removed, constant frame rate up to 60 fps).
-  - **MP3**: best audio, 192 kbps.
+  - **MP3**: best audio, at the best MP3 quality (variable bitrate, `--audio-quality 0`).
+  - H.264 + AAC is preferred when it's as sharp as the best version; otherwise the best
+    version is converted after downloading. If no preferred version exists, Dlr falls back to
+    the site's single best file.
 - **Pick a quality.** Tap **Download Video** again while it runs to stop it and choose one.
 - **Checked files.** Every file is checked for picture and sound, with one automatic retry.
 - **Queue.** Several downloads run one after another.
@@ -45,8 +48,14 @@ The full threat model and its limits are in [SECURITY.md](SECURITY.md). In short
   says so. Only single songs, no albums or playlists.
 - **Clear errors.** Plain messages for private videos, logins, copy-protected services (Netflix,
   Disney+, Apple Music…), and links to your own network.
-- **⚙ Settings:** download folder, yt-dlp version and update. A dot on the icon means a new
-  yt-dlp is available (checked at most once a day; it never updates on its own).
+- **Setup check.** If FFmpeg or Deno (needed for YouTube) is missing, Dlr says so at launch with
+  the exact command to install it (`brew install ffmpeg`, `brew install deno`).
+- **Logins when needed.** If a site says you must be logged in, isn't sure you're not a bot,
+  or limits downloads, Dlr retries once using your browser's login (Settings › **Logins from**:
+  your default browser, another one, or **Never**). Cookies are read for that download only and
+  never copied or saved.
+- **⚙ Settings:** download folder, login browser, yt-dlp version and update. A dot on the icon
+  means a new yt-dlp is waiting for a restart.
 
 ## Install on Mac
 
@@ -77,10 +86,14 @@ Command-line mode (same code and checks, no window), from `Dlr.app/Contents/MacO
 
 ## Updating yt-dlp
 
-Sites change, and yt-dlp keeps up with new releases. When downloads start failing:
+Sites change, and yt-dlp keeps up with new releases. Dlr updates it on its own at most once a
+day at launch, and again when a download fails (at most once an hour); the new version is used
+after a restart. ⚙ Settings › **Update** does the same at any time. The method matches how
+yt-dlp was installed:
 
-- **Running from source:** open ⚙ Settings › **Update**, then restart the app.
-- **The packaged app:** open ⚙ Settings › **Update**. It downloads the newest yt-dlp from
+- **Running from source:** `pip install -U yt-dlp` (or `brew upgrade yt-dlp` if it came from
+  Homebrew).
+- **The packaged app:** it downloads the newest yt-dlp from
   the official GitHub releases, checks it against the official checksums, and uses it from
   the next launch. The yt-dlp built into the app stays as a fallback: if the update is damaged
   or won't load, Dlr quietly goes back to it. Rebuilding (`pip install -U yt-dlp`, then
@@ -88,8 +101,9 @@ Sites change, and yt-dlp keeps up with new releases. When downloads start failin
 
 ## What it keeps
 
-`~/Library/Application Support/Dlr/` holds `config.json` (your download folder) and, after an
-update, the verified yt-dlp in `yt-dlp/`, plus the date of the last update check.
+`~/Library/Application Support/Dlr/` holds `config.json` (your download folder and login
+browser) and, after an update, the verified yt-dlp in `yt-dlp/`, plus the times of the last
+update checks.
 It keeps no history, links, titles, logs or caches. It talks only to the site you download from,
 plus GitHub for yt-dlp updates (full list in [SECURITY.md](SECURITY.md)).
 

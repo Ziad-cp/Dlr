@@ -21,8 +21,8 @@ you download from them, and copy-protected (DRM) services, which the app refuses
 The window loads its page straight from disk. (Checked with `lsof` while idle and downloading.)
 
 **The window's bridge to Python.** The page can call only the functions it needs: `info`,
-`fetch`, `add`, `cancel`, `jobs`, `reveal`, `clipboard`, `choose_folder`, `update_ytdlp`,
-`update_status`.
+`fetch`, `add`, `cancel`, `jobs`, `reveal`, `clipboard`, `choose_folder`, `set_browser`,
+`update_ytdlp`, `update_status`.
 Every argument is checked for type, length and allowed values. Errors come back as plain
 messages, never Python tracebacks. The clipboard function returns only a valid link found
 there, never the rest of the clipboard.
@@ -61,11 +61,18 @@ in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilitie
 
 ## Privacy
 
-- **Saved:** only `config.json`, holding the download folder
-  (`~/Library/Application Support/Dlr/` on Mac). No history, links or titles.
+- **Saved:** only `config.json`, holding the download folder and the **Logins from** setting
+  (`~/Library/Application Support/Dlr/` on Mac). No history, links, titles or cookies.
 - **No logs, no debug output, no caches:** yt-dlp's cache is off, and pip uses no cache.
   WebKit's own (empty) data folders are removed when the app quits and when it starts.
-- **Never read:** browser cookies, Keychain, contacts or photos. No cookie or login options exist.
+- **Browser logins, only when a site asks for one:** if a site answers "log in", "not a bot",
+  "private" or "too many requests", the download is retried once with yt-dlp's
+  `cookiesfrombrowser`, using the browser chosen in Settings › **Logins from** (default: your
+  default browser; **Never** turns it off). yt-dlp reads the cookies straight from the browser
+  into memory for that one download; Dlr never copies, saves or logs them, and they're sent only
+  to the sites they belong to. macOS asks first: Keychain access for Chrome-based browsers, Full
+  Disk Access for Safari.
+- **Never read:** contacts or photos.
 - **Read when you switch to the window:** the clipboard, and only to find a link to fill in.
   Nothing from it is kept.
 - **Network connections (complete list):**
@@ -74,10 +81,11 @@ in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilitie
      For Spotify links: `open.spotify.com` for the song's public info, `*.spotifycdn.com`
      for the cover, then YouTube to find and download the song.
   2. DNS lookups for the link's host, from the local-network check.
-  3. GitHub, for yt-dlp updates: at most once a day at launch, one request to
-     `github.com/yt-dlp/yt-dlp/releases/latest` to see if there's a new version; and when you
-     press **Update**, the release files from `github.com` / `*.githubusercontent.com`.
-     (Running from source, **Update** uses `pypi.org` and `files.pythonhosted.org` instead.)
+  3. GitHub, for yt-dlp updates: at most once a day at launch, after a failed download (at most
+     once an hour), and when you press **Update**: `github.com/yt-dlp/yt-dlp/releases/latest`,
+     then the release files from `github.com` / `*.githubusercontent.com` if there's a new one.
+     (Running from source, updates use `pypi.org` and `files.pythonhosted.org`, or Homebrew's
+     servers if yt-dlp came from `brew`.)
 
   Nothing else: no analytics, telemetry, crash reports or update checks. The window itself makes
   no connections. If Deno is installed, yt-dlp may run it (sandboxed: no network, no files) to
@@ -85,7 +93,7 @@ in `requirements.txt`, and are checked with `pip-audit` (no known vulnerabilitie
 
 ## yt-dlp updates in the packaged app
 
-The app has its own yt-dlp sealed inside. **Update** in Settings replaces it safely:
+The app has its own yt-dlp sealed inside. Updates replace it safely:
 
 1. **Source:** only the official releases at `github.com/yt-dlp/yt-dlp`, over HTTPS. Redirects
    are followed only to GitHub's download servers (`*.githubusercontent.com`). Anything else
@@ -99,8 +107,9 @@ The app has its own yt-dlp sealed inside. **Update** in Settings replaces it saf
 4. **Use:** at the next launch, only if it's newer than the built-in yt-dlp, still matches its
    recorded checksum, and loads cleanly (plugins off). Otherwise the built-in version is used and
    the bad update is deleted. (Tested with a damaged file and with one that fails to load.)
-5. **Checks:** at most once a day at launch, the app asks GitHub for the latest version and shows
-   a dot on the Settings icon. It never installs anything without your click.
+5. **When:** on its own at most once a day at launch, and after a failed download (at most once
+   an hour), since a failure often means the site changed; or when you press **Update**. A dot on
+   the Settings icon shows a new version waiting for a restart.
 
 ## Known limits
 

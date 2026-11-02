@@ -62,6 +62,79 @@ def find_ffmpeg():
     return None
 
 
+def find_deno():
+    """Path to Deno, or None. yt-dlp needs it to solve YouTube's puzzles (full quality, fewer errors)."""
+    for d in [None, *_FFMPEG_DIRS, os.path.expanduser("~/.deno/bin")]:
+        deno = shutil.which("deno", path=d)
+        if deno:
+            return deno
+    return None
+
+
+def _install_command(package: str) -> str:
+    if sys.platform == "win32":
+        return {"ffmpeg": "winget install Gyan.FFmpeg", "deno": "winget install DenoLand.Deno"}[package]
+    return f"brew install {package}"
+
+
+def missing_tools() -> list[dict]:
+    """Tools Dlr needs that aren't installed, each with the command that installs it.
+    (yt-dlp itself is inside the app, or checked by app.py when running from source.)"""
+    missing = []
+    if not find_ffmpeg():
+        missing.append({"name": "FFmpeg", "why": "needed to combine picture and sound",
+                        "command": _install_command("ffmpeg")})
+    if not find_deno():
+        missing.append({"name": "Deno", "why": "needed for YouTube: full quality and fewer errors",
+                        "command": _install_command("deno")})
+    if missing and sys.platform == "darwin" and not any(
+            shutil.which("brew", path=d) for d in [None, *_FFMPEG_DIRS]):
+        for tool in missing:
+            tool["why"] += "; install Homebrew first from brew.sh"
+    return missing
+
+
+# ---- logins from the browser (only when a site asks for one) ----
+
+BROWSER_NAMES = {"safari": "Safari", "chrome": "Chrome", "firefox": "Firefox", "brave": "Brave",
+                 "edge": "Edge", "opera": "Opera", "vivaldi": "Vivaldi", "chromium": "Chromium"}
+_MAC_BROWSERS = {"com.apple.safari": "safari", "com.google.chrome": "chrome", "org.mozilla.firefox": "firefox",
+                 "com.brave.browser": "brave", "com.microsoft.edgemac": "edge", "com.operasoftware.opera": "opera",
+                 "com.vivaldi.vivaldi": "vivaldi", "org.chromium.chromium": "chromium"}
+_WINDOWS_BROWSERS = {"chromehtml": "chrome", "msedgehtm": "edge", "firefoxurl": "firefox", "bravehtml": "brave",
+                     "operastable": "opera", "vivaldihtm": "vivaldi"}
+
+
+def default_browser() -> str:
+    """The default browser, as yt-dlp names it, or "" if unknown or one yt-dlp can't read."""
+    try:
+        if sys.platform == "darwin":
+            import plistlib
+            prefs = os.path.expanduser(
+                "~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist")
+            with open(prefs, "rb") as f:
+                handlers = plistlib.load(f).get("LSHandlers", [])
+            bundle = next((h.get("LSHandlerRoleAll", "") for h in handlers
+                           if h.get("LSHandlerURLScheme") == "https"), "com.apple.safari")
+            return _MAC_BROWSERS.get(bundle.lower(), "")
+        if sys.platform == "win32":
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations"
+                                 r"\UrlAssociations\https\UserChoice")
+            prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
+            return next((b for p, b in _WINDOWS_BROWSERS.items() if prog_id.startswith(p)), "")
+    except Exception:
+        pass
+    return ""
+
+
+def login_browser(setting: str) -> str:
+    """The browser whose login to use for a setting ("auto", "off" or a browser), or ""."""
+    if setting == "auto":
+        return default_browser()
+    return setting if setting in BROWSER_NAMES else ""
+
+
 def _tool(ffmpeg_dir: str, name: str) -> str:
     return shutil.which(name, path=ffmpeg_dir) or os.path.join(ffmpeg_dir, name)
 
@@ -278,28 +351,52 @@ def _side(label: str) -> int:
 
 
 # (pattern in yt-dlp's message, what to tell the user). First match wins.
+NETWORK_ERROR = "Network error. Check your internet connection and try again."
+DRM_ERROR = "This video is copy-protected, so it can't be downloaded."
+
 _ERRORS = [
-    (r"\bdrm\b|copy[- ]protect",
-     "This video is copy-protected, so it can't be downloaded."),
+    (r"\bdrm\b|copy[- ]protect", DRM_ERROR),
+    # Reading the browser's login failed (macOS privacy settings or Keychain).
+    (r"full disk access|binarycookies|cookies?.*operation not permitted|operation not permitted.*cookies"
+     r"|cookies? database|failed to (decrypt|load) cookies|keychain|keyring|could not find .* cookies",
+     "Dlr couldn't read your browser's login. For Safari, allow Dlr in System Settings › Privacy & "
+     "Security › Full Disk Access. For other browsers, click Allow when your Mac asks about the keychain."),
     (r"private video|video is private|this account is private",
      "This video is private. Only the owner or approved accounts can watch it."),
     (r"not a bot",
-     "YouTube wants to confirm you're not a bot. Wait a bit, try again, or press \"Update yt-dlp\"."),
+     "YouTube wants to confirm you're not a bot. Log in to YouTube in your browser, then try again."),
     (r"age[- ]restricted|confirm your age|inappropriate for some users",
-     "This video is age-restricted and can only be downloaded with a logged-in account."),
-    (r"login required|log in|sign in|logged[- ]in|requires authentication|use --cookies|rate-limit reached",
-     "This site requires you to be logged in to access this video."),
+     "This video is age-restricted. Log in to the site in your browser, then try again."),
+    (r"too many requests|http error 429|rate[- ]limit",
+     "This site is limiting downloads right now. Wait a few minutes and try again."),
+    (r"login required|log in|sign in|logged[- ]in|requires authentication|account authentication|use --cookies",
+     "This site needs you to be logged in. Log in to it in your browser, then try again."),
+    (r"available in your country|geo[- ]?restrict|from your location",
+     "This video isn't available in your country."),
     (r"unsupported url|no video could be found|is not a valid url",
      "This site or link isn't supported. Make sure it's a direct link to a single video."),
     (r"requested format is not available",
      "No version of this video can be saved this way. Try the other button, or another link."),
     (r"video unavailable|is unavailable|not available|has been removed|does not exist|http error 404|this post is unavailable",
-     "This video is unavailable. It may have been deleted or blocked in your region."),
+     "This video is unavailable. It may have been deleted."),
+    (r"javascript runtime|js runtime|\bdeno\b|n challenge|signature solving",
+     "YouTube needs Deno to download this. Install it in Terminal with: brew install deno"),
+    (r"http error 403|forbidden",
+     "The site refused the download. Try again in a few minutes."),
     (r"unable to download webpage|getaddrinfo|timed out|connection|network is unreachable|nodename nor servname",
-     "Network error. Check your internet connection and try again."),
+     NETWORK_ERROR),
     (r"ffmpeg|ffprobe",
-     "FFmpeg is missing or failed. Make sure FFmpeg is installed and on your PATH."),
+     "FFmpeg is missing or failed. Install it in Terminal with: brew install ffmpeg"),
 ]
+
+# Errors a logged-in browser can fix: retried once with the browser's login.
+_NEEDS_LOGIN = re.compile(r"not a bot|log ?in|sign in|logged[- ]in|requires authentication|account authentication"
+                          r"|use --cookies|too many requests|http error 429|rate[- ]limit|private|age[- ]restricted"
+                          r"|confirm your age", re.I)
+
+
+def needs_login(exc: Exception) -> bool:
+    return bool(_NEEDS_LOGIN.search(str(exc)))
 
 
 def friendly_error(exc: Exception) -> str:
@@ -333,6 +430,10 @@ def _base_opts() -> dict:
     ffmpeg = find_ffmpeg()
     if ffmpeg:
         opts["ffmpeg_location"] = ffmpeg
+    deno = find_deno()
+    if deno:
+        # Apps opened from Finder don't get Homebrew's PATH, so tell yt-dlp where Deno is.
+        opts["js_runtimes"] = {"deno": {"path": deno}}
     return opts
 
 
@@ -344,7 +445,7 @@ def build_opts(quality: str, out_dir: str) -> dict:
         opts["postprocessors"] = [{
             "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
-            "preferredquality": "192",
+            "preferredquality": "0",  # best variable bitrate, like --audio-quality 0
         }]
     else:
         # "res" is the shorter side, so 1080p also works for vertical videos. With a
@@ -358,8 +459,31 @@ def build_opts(quality: str, out_dir: str) -> dict:
     return opts
 
 
+_H264 = re.compile(r"^(avc|h264)")
+
+
+def _merged(video: dict, audio: dict) -> dict:
+    """A video stream and an audio stream to download and merge into one MP4."""
+    return {
+        "format_id": f"{video['format_id']}+{audio['format_id']}",
+        "ext": "mp4",
+        "requested_formats": [video, audio],
+        "protocol": f"{video.get('protocol')}+{audio.get('protocol')}",
+        "width": video.get("width"),
+        "height": video.get("height"),
+        "fps": video.get("fps"),
+        "vcodec": video.get("vcodec"),
+        "acodec": audio.get("acodec"),
+    }
+
+
 def _pick_video(ctx):
     """yt-dlp format selector: the best video, with the video's own sound.
+
+    H.264 + M4A (AAC) comes first, as it plays everywhere without converting, like
+    -f "bv*[vcodec^=avc1]+ba[ext=m4a]", but only when it is as sharp and smooth as the
+    best version: a 4K VP9 video isn't swapped for a 1080p H.264 one (it gets converted
+    to an Apple-friendly MP4 after downloading instead).
 
     TikTok sometimes serves its top quality without audio, next to lower-quality
     versions that have it, plus a separate MP3 "audio" track that can be the
@@ -374,10 +498,23 @@ def _pick_video(ctx):
             yield formats[-1]
         return
     best = videos[-1]
+    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") not in ("none", None)]
+
+    def rank(f):
+        return min(f.get("height") or 0, f.get("width") or f.get("height") or 0), f.get("fps") or 0
+
+    h264 = [f for f in videos if _H264.match(f.get("vcodec") or "") and rank(f) >= rank(best)]
+    m4a = [f for f in audio_only if f.get("ext") == "m4a"]
+    if h264 and h264[-1].get("acodec") not in ("none", None):
+        yield h264[-1]
+        return
+    if h264 and m4a:
+        yield _merged(h264[-1], m4a[-1])
+        return
+
     if best.get("acodec") != "none":
         yield best
         return
-    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") not in ("none", None)]
     own = [f for f in audio_only if f.get("acodec") != "mp3"]
     with_sound = [f for f in videos if f.get("acodec") not in ("none", None)]
     if own:
@@ -389,17 +526,7 @@ def _pick_video(ctx):
     else:
         yield best
         return
-    yield {
-        "format_id": f"{best['format_id']}+{audio['format_id']}",
-        "ext": "mp4",
-        "requested_formats": [best, audio],
-        "protocol": f"{best.get('protocol')}+{audio.get('protocol')}",
-        "width": best.get("width"),
-        "height": best.get("height"),
-        "fps": best.get("fps"),
-        "vcodec": best.get("vcodec"),
-        "acodec": audio.get("acodec"),
-    }
+    yield _merged(best, audio)
 
 
 def retry_format(tried: list[str]) -> str:
@@ -413,7 +540,7 @@ def retry_format(tried: list[str]) -> str:
     ])
 
 
-MP3_LABEL = "MP3 · 192 kbps"
+MP3_LABEL = "MP3 · best quality"
 
 
 def fmt_duration(seconds) -> str:
@@ -493,7 +620,37 @@ def drm_site(url: str) -> str:
     return next((name for pattern, name in _DRM_SITES if re.search(pattern, host)), "")
 
 
-def fetch_info(url: str) -> dict:
+class EngineError(DownloaderError):
+    """yt-dlp couldn't get the video (the message is already plain English)."""
+
+
+def with_login_retry(run, browser_setting: str, on_retry=lambda: None):
+    """Call run(opts_extra); if the site wants a login, call it once more with the
+    browser's login. yt-dlp reads the cookies straight from the browser each time and
+    keeps them in memory only: Dlr never copies or saves them."""
+    try:
+        return run({})
+    except yt_dlp.utils.DownloadCancelled:
+        raise
+    except Exception as e:
+        browser = login_browser(browser_setting)
+        if not needs_login(e) or not browser:
+            raise
+        first = e
+    on_retry()
+    try:
+        return run({"cookiesfrombrowser": (browser,)})
+    except yt_dlp.utils.DownloadCancelled:
+        raise
+    except Exception as e:
+        if needs_login(e) and friendly_error(e) == friendly_error(first):
+            name = BROWSER_NAMES[browser]
+            raise EngineError(f"{friendly_error(e)} (Dlr tried your {name} login: make sure you're "
+                              f"logged in to this site in {name}.)") from None
+        raise
+
+
+def fetch_info(url: str, browser_setting: str = "off") -> dict:
     """Look up a video without downloading. Raises DownloaderError."""
     try:
         url = safety.check_url(url)
@@ -503,13 +660,19 @@ def fetch_info(url: str) -> dict:
     if protected:
         raise DownloaderError(f"{protected} is copy-protected, so it can't be downloaded.")
     if spotify.is_spotify(url):
-        return _fetch_spotify(url)
-    try:
+        return _fetch_spotify(url, browser_setting)
+
+    def lookup(extra):
         # Same format rules as the download, so we know what quality it will get.
-        with yt_dlp.YoutubeDL(build_opts("best", ".")) as ydl:
-            info = ydl.extract_info(url, download=False)
+        with yt_dlp.YoutubeDL({**build_opts("best", "."), **extra}) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    try:
+        info = with_login_retry(lookup, browser_setting)
+    except DownloaderError:
+        raise
     except Exception as e:
-        raise DownloaderError(friendly_error(e)) from None
+        raise EngineError(friendly_error(e)) from None
     if info.get("_type") == "playlist" or info.get("entries") is not None:
         raise DownloaderError("That's a playlist or profile. Paste a link to a single video.")
     chosen = next((f for f in info.get("requested_formats") or [] if f.get("vcodec") != "none"), info)
@@ -571,13 +734,13 @@ def valid_quality(quality: str) -> bool:
     return quality in ("best", "mp3") or (str(quality).isdigit() and 100 <= int(quality) <= 4320)
 
 
-def _fetch_spotify(url: str) -> dict:
+def _fetch_spotify(url: str, browser_setting: str) -> dict:
     """Spotify song: show Spotify's info, with the matching YouTube upload's qualities."""
     try:
         track, youtube_url = spotify.resolve(url)
     except spotify.SpotifyError as e:
         raise DownloaderError(str(e)) from None
-    info = fetch_info(youtube_url)
+    info = fetch_info(youtube_url, browser_setting)
     info.update({
         "url": url,
         "title": track["name"],
@@ -622,11 +785,12 @@ def tag_audio(ffmpeg_dir: str, path: str, track: dict):
 
 def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label: str = "",
              prefer_ready_file: bool = False, progress=None, status=None, title=None,
-             cancelled=lambda: False) -> dict:
+             cancelled=lambda: False, browser_setting: str = "off") -> dict:
     """Download one link into folder.
 
     ffmpeg_dir: folder holding ffmpeg/ffprobe, "" to call them by name, or None if
     there is no FFmpeg (fallback: only ready-made MP4 files, nothing to merge).
+    browser_setting: whose login to retry with if the site wants one (see with_login_retry).
     Work happens in a private temp folder inside `folder`, removed afterwards whatever
     happens; the result is moved out under a name that never replaces an existing file.
     Returns {"path", "title", "label", "fallback"}. Raises DownloaderError or JobCancelled.
@@ -665,6 +829,8 @@ def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label:
     work = tempfile.mkdtemp(prefix=".vd-", dir=folder)  # private: nothing else is in it
     try:
         tried: list[str] = []
+        login: dict = {}  # the browser login, once a site has needed it
+        plain_best = False  # the preferred formats weren't available: fall back to -f "b"
         for attempt in (1, 2):
             _empty(work)
             opts = build_opts(quality, work)
@@ -689,14 +855,27 @@ def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label:
                                       else f"b[ext=mp4][vcodec!^=hev1]{avoid}/b[ext=mp4][vcodec!^=hev1]")
                 else:
                     opts["format"] = f"ba{avoid}/b{avoid}/ba/b" if mp3 else retry_format(tried)
+                if plain_best and not mp3:
+                    opts["format"] = "b"
             if attempt == 2:
                 status("downloading")
+
+            def fetch(extra, opts=opts):
+                login.update(extra)
+                _empty(work)
+                with yt_dlp.YoutubeDL({**opts, **login}) as ydl:
+                    return ydl.extract_info(source, download=True)
+
             try:
-                with yt_dlp.YoutubeDL(opts) as ydl:
-                    info = ydl.extract_info(source, download=True)
+                info = with_login_retry(fetch, "off" if login else browser_setting,
+                                        on_retry=lambda: status("downloading"))
             except yt_dlp.utils.DownloadError as e:
-                if ffmpeg_dir is None and "requested format is not available" in str(e).lower():
+                no_format = "requested format is not available" in str(e).lower()
+                if ffmpeg_dir is None and no_format:
                     raise DownloaderError(NEEDS_FFMPEG) from None
+                if no_format and attempt == 1 and ffmpeg_dir is not None:
+                    plain_best = True
+                    continue
                 raise
             check_cancel()
             tried += str(info.get("format_id") or "").split("+")
@@ -809,7 +988,8 @@ class Downloader:
     Listeners are called from that thread whenever a job changes.
     """
 
-    def __init__(self, on_update=None):
+    def __init__(self, on_update=None, browser_setting=lambda: "off"):
+        self._browser_setting = browser_setting  # read for each download, so changes apply at once
         self.jobs: list[Job] = []
         self._lock = threading.Lock()
         self._queue: queue.Queue[Job] = queue.Queue()
@@ -883,12 +1063,15 @@ class Downloader:
                 job.status = "cancelled"  # download() already removed its temp folder
                 job.percent = 0.0
                 job.speed = job.eta = ""
+            except EngineError as e:
+                job.status = "error"
+                job.error = with_update_note(str(e))
             except DownloaderError as e:
                 job.status = "error"
                 job.error = str(e)
             except Exception as e:
                 job.status = "error"
-                job.error = friendly_error(e)
+                job.error = with_update_note(friendly_error(e))
             self._cancelled.discard(job.id)
             self._notify(job)
 
@@ -921,7 +1104,8 @@ class Downloader:
 
         result = download(job.url, job.quality, job.out_dir, ffmpeg_dir, expected_label=job.label,
                           progress=progress, status=status, title=title,
-                          cancelled=lambda: job.id in self._cancelled)
+                          cancelled=lambda: job.id in self._cancelled,
+                          browser_setting=self._browser_setting())
         job.filepath, job.label, job.fallback = result["path"], result["label"], result["fallback"]
 
 
@@ -929,23 +1113,68 @@ def ytdlp_version() -> str:
     return yt_dlp.version.__version__
 
 
-def update_ytdlp() -> tuple[bool, str]:
-    """Update yt-dlp. Returns (changed, message).
-
-    Packaged app: a verified download from the official GitHub releases (see updater.py),
-    used from the next launch. Running from source: pip install -U yt-dlp.
-    """
+def install_method() -> str:
+    """How the yt-dlp in use was installed, which decides how to update it:
+    "app" (inside Dlr.app: verified download of the official release file), "brew" or "pip"."""
     if getattr(sys, "frozen", False):
-        import updater
+        return "app"
+    location = os.path.realpath(yt_dlp.__file__)
+    if "/Cellar/" in location or location.startswith(("/opt/homebrew/", "/usr/local/Homebrew/")):
+        return "brew"
+    return "pip"
+
+
+def update_ytdlp() -> tuple[bool, str]:
+    """Update yt-dlp the way it was installed. Returns (changed, message).
+    A new version is used from the next launch. Commands are argument lists, never a shell."""
+    import updater
+    method = install_method()
+    if method == "app":
         return updater.install_latest()
-    before = ytdlp_version()
-    r = subprocess.run([sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir",
-                        "--disable-pip-version-check", "yt-dlp"],
-                       capture_output=True, text=True)
+    before = updater.current_version()
+    if method == "brew":
+        brew = next(filter(None, (shutil.which("brew", path=d) for d in [None, *_FFMPEG_DIRS])), "")
+        if not brew:
+            return False, f"Couldn't find Homebrew. Keeping {before}."
+        r = subprocess.run([brew, "upgrade", "yt-dlp"], capture_output=True, text=True, timeout=600)
+        check = [os.path.join(os.path.dirname(brew), "yt-dlp"), "--version"]
+    else:
+        r = subprocess.run([sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir",
+                            "--disable-pip-version-check", "yt-dlp"],
+                           capture_output=True, text=True, timeout=600)
+        check = [sys.executable, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"]
     if r.returncode != 0:
         return False, f"Couldn't update right now. Keeping {before}."
-    after = subprocess.run([sys.executable, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"],
-                           capture_output=True, text=True).stdout.strip() or before
-    if after == before:
+    after = subprocess.run(check, capture_output=True, text=True, timeout=60).stdout.strip() or before
+    if not updater.newer(after, before):
         return False, f"Up to date ({before})"
+    updater.active["pending"] = after
     return True, f"Updated to {after}. Restart Dlr to use it."
+
+
+def auto_update():
+    """At launch: update yt-dlp on its own, at most once a day."""
+    import updater
+    if updater.due("last_auto_update", updater.CHECK_EVERY):
+        updater.mark("last_auto_update")
+        try:
+            update_ytdlp()
+        except Exception:
+            pass
+    updater.check_latest()
+
+
+def with_update_note(error: str) -> str:
+    """After a failed download, update yt-dlp (at most once an hour), as sites change often
+    and a new yt-dlp usually fixes it. Returns the error, plus a note if an update arrived."""
+    import updater
+    if error in (NETWORK_ERROR, DRM_ERROR) or not updater.due("last_failure_update", 3600):
+        return error
+    updater.mark("last_failure_update")
+    try:
+        changed, _ = update_ytdlp()
+    except Exception:
+        changed = False
+    if changed:
+        return f"{error} Dlr just updated yt-dlp to {updater.active['pending']}: restart Dlr and try again."
+    return error

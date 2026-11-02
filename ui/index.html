@@ -31,6 +31,7 @@
         </div>
       </div>
       <p class="error" id="error" role="alert"></p>
+      <div class="notice" id="setupNotice" role="status" hidden></div>
 
       <section class="card" id="card" hidden>
         <div class="card-top">
@@ -72,6 +73,25 @@
         <span class="path" id="folderPath"></span>
         <button class="chip" id="folderBtn">Change</button>
       </div>
+    </section>
+    <section class="setting">
+      <div class="setting-row">
+        <label class="setting-label" for="browserSelect">Logins from</label>
+        <select class="chip select" id="browserSelect">
+          <option value="auto" id="browserAuto">Default browser</option>
+          <option value="safari">Safari</option>
+          <option value="chrome">Chrome</option>
+          <option value="firefox">Firefox</option>
+          <option value="brave">Brave</option>
+          <option value="edge">Edge</option>
+          <option value="opera">Opera</option>
+          <option value="vivaldi">Vivaldi</option>
+          <option value="chromium">Chromium</option>
+          <option value="off">Never</option>
+        </select>
+      </div>
+      <p class="hint">Only used when a site needs you to be logged in. Your cookies are read from the
+        browser for that download and never copied or saved.</p>
     </section>
     <section class="setting">
       <div class="setting-row">
