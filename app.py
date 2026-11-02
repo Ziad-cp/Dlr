@@ -21,7 +21,15 @@ import updater
 updater.activate()
 
 import config  # noqa: E402
-import downloader as dl  # noqa: E402
+
+try:
+    import downloader as dl  # noqa: E402
+except ImportError as e:
+    if getattr(e, "name", "") != "yt_dlp" or getattr(sys, "frozen", False):
+        raise
+    # Running from source without yt-dlp (the packaged app always has it inside).
+    sys.exit("yt-dlp isn't installed. Install it in Terminal with:\n"
+             "  .venv/bin/pip install -r requirements.txt")
 import safety  # noqa: E402
 
 # No logging or debug output: pywebview logs to the console by default.
@@ -121,11 +129,11 @@ class Api:
     def __init__(self):
         self._cfg = config.load()
         self._lock = threading.Lock()
-        self._downloader = dl.Downloader()
+        self._downloader = dl.Downloader(browser_setting=lambda: self._cfg["cookies_browser"])
         # Leftovers of an interrupted run; in the background so the window opens at once.
         threading.Thread(target=dl.remove_stale_temp, args=(self._cfg["output_dir"],), daemon=True).start()
-        # Look for a new yt-dlp (at most once a day). Nothing is installed without a click.
-        threading.Thread(target=updater.check_latest, daemon=True).start()
+        # Update yt-dlp on its own (at most once a day); used from the next launch.
+        threading.Thread(target=dl.auto_update, daemon=True).start()
         self._window = None
 
     def _save(self):
@@ -145,6 +153,10 @@ class Api:
             "ytdlpSource": updater.active["source"],
             "ytdlpNote": updater.active["note"],
             "updateAvailable": updater.update_available(),
+            "updatePending": updater.active["pending"],
+            "missing": dl.missing_tools(),
+            "browser": self._cfg["cookies_browser"],
+            "defaultBrowser": dl.BROWSER_NAMES.get(dl.default_browser(), ""),
             "version": __version__,
         }
 
@@ -152,9 +164,21 @@ class Api:
     def fetch(self, url) -> dict:
         url = _text(url, safety.MAX_URL_LENGTH)
         try:
-            return dl.fetch_info(url)
+            return dl.fetch_info(url, self._cfg["cookies_browser"])
+        except dl.EngineError as e:
+            return {"error": dl.with_update_note(str(e))}
         except dl.DownloaderError as e:
             return {"error": str(e)}
+
+    @_bridge(None)
+    def set_browser(self, browser) -> dict:
+        """Whose login to use when a site asks for one: "auto", "off" or a browser."""
+        browser = _text(browser, 20)
+        if browser not in config.BROWSERS:
+            raise _BadRequest
+        self._cfg["cookies_browser"] = browser
+        self._save()
+        return {"ok": True}
 
     @_bridge(None)
     def add(self, url, mode, title="", label="") -> dict:
@@ -217,8 +241,8 @@ class Api:
 
     @_bridge("")
     def update_status(self) -> str:
-        """The newer yt-dlp version available (checked at most once a day), or ""."""
-        return updater.update_available()
+        """A newer yt-dlp waiting for a restart, or one available (checked at most once a day), or ""."""
+        return updater.active["pending"] or updater.update_available()
 
 
 def _forget_webkit_data():
@@ -261,12 +285,14 @@ def download_cli(args: list[str]) -> int:
     if len(args) not in (2, 3) or args[1] not in ("video", "mp3"):
         print("Usage: --download LINK video|mp3 [FOLDER]")
         return 2
-    folder = args[2] if len(args) == 3 else config.load()["output_dir"]
+    cfg = config.load()
+    folder = args[2] if len(args) == 3 else cfg["output_dir"]
     ffmpeg_dir = dl.find_ffmpeg()
     try:
         if not ffmpeg_dir:
             raise dl.DownloaderError(dl.FFMPEG_MISSING)
-        result = dl.download(args[0], "mp3" if args[1] == "mp3" else "best", folder, ffmpeg_dir)
+        result = dl.download(args[0], "mp3" if args[1] == "mp3" else "best", folder, ffmpeg_dir,
+                             browser_setting=cfg["cookies_browser"])
     except dl.DownloaderError as e:
         print(f"ERROR: {e}")
         return 1

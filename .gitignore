@@ -23,6 +23,8 @@ Downloads/
 *.part
 *.ytdl
 .vd-*/
+
+# iPhone / a-Shell version (not published yet)
 iphone/
 
 # macOS

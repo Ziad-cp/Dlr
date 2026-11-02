@@ -7,8 +7,9 @@
 - Keeps the update in ~/Library/Application Support/Dlr/yt-dlp/. At launch, activate() uses it
   only if it's newer than the built-in yt-dlp, still matches its recorded checksum, and loads
   cleanly; otherwise the built-in version is used (and a broken update is removed).
-- check_latest() looks for a new release at most once a day; nothing is installed until the
-  user clicks Update.
+- Dlr installs a new release on its own: at most once a day at launch, and again (at most once
+  an hour) when a download fails, since a failure often means the site changed. It's used from
+  the next launch. The Update button does the same at any time.
 
 activate() must run before anything imports yt_dlp.
 """
@@ -46,8 +47,8 @@ def app_dir() -> Path:
 UPDATE_DIR = app_dir() / "yt-dlp"
 ZIP, MANIFEST, STATE = UPDATE_DIR / "yt-dlp.zip", UPDATE_DIR / "manifest.json", UPDATE_DIR / "state.json"
 
-# What is in use; filled in by activate().
-active = {"source": "built-in", "version": "", "note": ""}
+# What is in use; filled in by activate(). "pending": a newer version installed since launch.
+active = {"source": "built-in", "version": "", "note": "", "pending": ""}
 
 
 class UpdateError(Exception):
@@ -174,6 +175,19 @@ def _read_state() -> dict:
         return {}
 
 
+def due(key: str, every: float) -> bool:
+    """True if the action recorded under key last ran more than `every` seconds ago."""
+    return time.time() - _read_state().get(key, 0) >= every
+
+
+def mark(key: str):
+    """Record that the action under key ran now (only a time is kept, nothing else)."""
+    try:
+        _write_atomic(STATE, json.dumps({**_read_state(), key: time.time()}).encode())
+    except OSError:
+        pass
+
+
 def _write_atomic(path: Path, data: bytes):
     UPDATE_DIR.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=UPDATE_DIR, prefix=".tmp-")
@@ -198,13 +212,19 @@ def check_latest(force: bool = False) -> str:
         latest = latest_version()
     except UpdateError:
         return state.get("latest", "")
-    _write_atomic(STATE, json.dumps({"last_check": time.time(), "latest": latest}).encode())
+    _write_atomic(STATE, json.dumps({**state, "last_check": time.time(), "latest": latest}).encode())
     return latest
 
 
 def update_available() -> str:
     latest = _read_state().get("latest", "")
-    return latest if newer(latest, active["version"] or builtin_version()) else ""
+    return latest if newer(latest, current_version()) else ""
+
+
+def current_version() -> str:
+    """The newest yt-dlp on this computer: in use, or installed and waiting for a restart."""
+    in_use = active["version"] or builtin_version()
+    return active["pending"] if newer(active["pending"], in_use) else in_use
 
 
 def verify(data: bytes, sums: str, tag: str) -> str:
@@ -234,10 +254,10 @@ def verify(data: bytes, sums: str, tag: str) -> str:
 
 def install_latest() -> tuple[bool, str]:
     """Download, verify and save the newest yt-dlp. Returns (changed, message)."""
-    current = active["version"] or builtin_version()
+    current = current_version()
     try:
         tag = latest_version()
-        _write_atomic(STATE, json.dumps({"last_check": time.time(), "latest": tag}).encode())
+        _write_atomic(STATE, json.dumps({**_read_state(), "last_check": time.time(), "latest": tag}).encode())
         if not newer(tag, current):
             return False, f"Up to date ({current})"
         _, sums = _get(f"{RELEASES}/download/{tag}/SHA2-256SUMS", 64 * 1024)
@@ -248,6 +268,7 @@ def install_latest() -> tuple[bool, str]:
         _write_atomic(ZIP, data)
         _write_atomic(MANIFEST, json.dumps({"version": tag, "sha256": digest, "asset": ASSET,
                                             "source": f"{RELEASES}/tag/{tag}"}).encode())
+        active["pending"] = tag
         return True, f"Updated to {tag}. Restart Dlr to use it."
     except UpdateError as e:
         return False, f"{e} Keeping {current}."
