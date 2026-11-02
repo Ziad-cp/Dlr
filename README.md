@@ -193,7 +193,9 @@ file, base64), `DLR_KEYSTORE_PASSWORD`, `DLR_KEY_ALIAS` and `DLR_KEY_PASSWORD`.
 
 **Releases:** GitHub builds and tests the Mac, Windows and Android apps on every push
 (`.github/workflows/build.yml`). To publish a release, set `__version__` in `app.py`, then
-push a matching tag. The download links above always point to the newest release:
+either create a release on GitHub (**Releases** › **Draft a new release** › tag `v1.1.0` ›
+**Publish release**; the apps are added about 10 minutes later) or push a matching tag. The
+download links above always point to the newest release:
 
 ```bash
 git tag v1.1.0 && git push origin v1.1.0
