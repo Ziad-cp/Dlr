@@ -569,7 +569,8 @@ def _pick_video(ctx):
             yield formats[-1]
         return
     best = videos[-1]
-    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") not in ("none", None)]
+    # Sound-only streams; some sites (X) don't say which codec theirs use (acodec None).
+    audio_only = [f for f in formats if f.get("vcodec") == "none" and f.get("acodec") != "none"]
 
     def rank(f):
         return min(f.get("height") or 0, f.get("width") or f.get("height") or 0), f.get("fps") or 0
@@ -1100,8 +1101,8 @@ def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label:
         except spotify.SpotifyError as e:
             raise DownloaderError(str(e)) from None
         title(track["name"])
-        return _download_ytdlp(source, quality, folder, ffmpeg_dir, track=track,
-                               expected_label=expected_label, prefer_ready_file=prefer_ready_file, **calls)
+        return _download_song(source, track, quality, folder, ffmpeg_dir,
+                              expected_label=expected_label, prefer_ready_file=prefer_ready_file, **calls)
 
     url = _resolved(url, browser_setting)
     if links.site(url) in links.GALLERY_SITES or links.is_photo_link(url):
@@ -1212,8 +1213,9 @@ def _download_ytdlp(source: str, quality: str, folder: str, ffmpeg_dir, *, track
                         raise CheckFailed("sound")
                 else:
                     # Some videos (e.g. GIF-style posts on X) really have no sound.
-                    expect_audio = any(f.get("acodec") not in (None, "none")
-                                       for f in info.get("formats") or [info])
+                    # (A sound stream picked to merge in means the file must have sound.)
+                    expect_audio = (any(f.get("acodec") not in (None, "none") for f in info.get("formats") or [info])
+                                    or any(f.get("vcodec") == "none" for f in info.get("requested_formats") or []))
                     path = make_apple_compatible(ffmpeg_dir, path, expect_audio)
                 check_cancel()
                 break
@@ -1241,6 +1243,24 @@ def _download_ytdlp(source: str, quality: str, folder: str, ffmpeg_dir, *, track
                 "label": label or expected_label, "fallback": fallback}
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def _download_song(source: str, track: dict, quality: str, folder: str, ffmpeg_dir, **kw) -> dict:
+    """A Spotify song from its YouTube match. If that upload won't download (YouTube sometimes
+    stalls the streams of its automatic "Topic" songs), the best other upload is tried once."""
+    try:
+        return _download_ytdlp(source, quality, folder, ffmpeg_dir, track=track, **kw)
+    except (JobCancelled, yt_dlp.utils.DownloadCancelled):
+        raise
+    except Exception:
+        try:
+            other = spotify.find_on_youtube(track, music=False)
+        except spotify.SpotifyError:
+            other = source
+        if other == source:
+            raise
+        kw["progress"]({"status": "downloading", "downloaded_bytes": 0, "total_bytes": 1})
+        return _download_ytdlp(other, quality, folder, ffmpeg_dir, track=track, **kw)
 
 
 # ---- photo posts, carousels and slideshows ----
@@ -1441,18 +1461,19 @@ def _download_spotify_list(url: str, quality: str, folder: str, ffmpeg_dir, *, t
             try:
                 source = spotify.match(track)
                 number = f"{track['number']:02} " if track.get("number") else ""
-                result = _download_ytdlp(
-                    source, "mp3", work, ffmpeg_dir, track=track,
+                result = _download_song(
+                    source, track, "mp3", work, ffmpeg_dir,
                     name=safety.safe_filename(f"{number}{', '.join(track['artists'])} - {track['name']}"),
                     progress=song_progress, status=lambda s: None, cancelled=cancelled,
                     browser_setting=browser_setting)
                 saved.append(result["path"])
             except (JobCancelled, yt_dlp.utils.DownloadCancelled):
                 raise
-            except Exception:
+            except Exception as e:
                 missed.append(track["name"])
+                reason = str(e) if isinstance(e, (DownloaderError, spotify.SpotifyError)) else friendly_error(e)
         if not saved:
-            raise DownloaderError(f"None of the {n} songs could be found on YouTube Music, so nothing was saved.")
+            raise DownloaderError(f"None of the {n} songs could be saved. {reason}")
         status("processing")
         base = safety.safe_filename(f"{c['owner']} - {c['name']}" if album and c["owner"] else c["name"], 120, "Spotify")
         final = safety.move_dir_into(folder, base, [(p, os.path.basename(p)) for p in saved])

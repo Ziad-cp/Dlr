@@ -51,6 +51,19 @@ class QualityTest(unittest.TestCase):
         picked = list(dl._pick_video({"formats": formats}))[0]
         self.assertEqual(picked["format_id"], "h264+m4a")
 
+    def test_sound_with_unknown_codec_is_merged(self):
+        # X lists its HLS sound streams without a codec, next to silent HLS video.
+        formats = [
+            fmt("hls-audio-32000-Audio", None, vcodec="none", acodec=None),
+            fmt("hls-audio-64000-Audio", None, vcodec="none", acodec=None),
+            fmt("http-256", 180, vcodec=None, acodec=None),
+            fmt("hls-126", 180, vcodec="avc1.42C00C", acodec="none"),
+            fmt("http-832", 360, vcodec=None, acodec=None),
+            fmt("hls-348", 360, vcodec="avc1.42C01E", acodec="none"),
+        ]
+        picked = list(dl._pick_video({"formats": formats}))[0]
+        self.assertEqual(picked["format_id"], "hls-348+hls-audio-64000-Audio")
+
     def test_best_kept_when_h264_is_worse(self):
         formats = [fmt("h264", 720, vcodec="avc1"), fmt("vp9", 2160, vcodec="vp9"),
                    fmt("opus", None, vcodec="none", acodec="opus", ext="webm")]
