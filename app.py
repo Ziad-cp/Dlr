@@ -10,6 +10,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--gallery-dl"]:
     import gallery
     sys.exit(gallery.child_main(sys.argv[2:]))
 
+import atexit  # noqa: E402
 import functools  # noqa: E402
 import logging  # noqa: E402
 import os  # noqa: E402
@@ -272,6 +273,31 @@ def _forget_webkit_data():
             shutil.rmtree(folder, ignore_errors=True)
 
 
+_quit_observer = None  # kept alive for the whole run
+
+
+def _forget_webkit_data_on_every_quit():
+    """Run _forget_webkit_data however the app quits. Closing the window returns from
+    webview.start(), but ⌘Q, Dock › Quit, logging out and restarting the Mac go through
+    NSApplication's terminate:, which ends the process before Python's own exit handlers;
+    it announces NSApplicationWillTerminateNotification first, so clean up then too."""
+    global _quit_observer
+    atexit.register(_forget_webkit_data)
+    try:
+        from AppKit import NSApplicationWillTerminateNotification
+        from Foundation import NSNotificationCenter, NSObject
+    except ImportError:
+        return
+
+    class DlrQuitObserver(NSObject):
+        def appWillTerminate_(self, notification):
+            _forget_webkit_data()
+
+    _quit_observer = DlrQuitObserver.alloc().init()
+    NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+        _quit_observer, "appWillTerminate:", NSApplicationWillTerminateNotification, None)
+
+
 def create_window(api: Api):
     window = webview.create_window(
         "Dlr",
@@ -336,6 +362,7 @@ def main():
         # The released app prints nothing anywhere.
         sys.stdout = sys.stderr = open(os.devnull, "w")
     _forget_webkit_data()  # also covers a previous run that was force-quit
+    _forget_webkit_data_on_every_quit()
     api = Api()
     create_window(api)
     webview.start(http_server=False, private_mode=True)

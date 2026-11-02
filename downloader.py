@@ -299,8 +299,10 @@ def _encode_args(timing: dict) -> list[list[str]]:
     fps = min(60, round(timing.get("peak_fps") or timing["fps"] or 30)) or 30
     encoders = [["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-tag:v", "avc1"]]
     if sys.platform == "darwin":
-        # The Mac's hardware encoder is much faster.
-        encoders.insert(0, ["-c:v", "hevc_videotoolbox", "-q:v", "70", "-tag:v", "hvc1", "-pix_fmt", "yuv420p"])
+        # The Mac's hardware H.264 encoder: on a 4K VP9 test about 2.3x faster than libx264 at the
+        # same quality (SSIM 0.9963 vs 0.9965) and size. Quality mode (-q:v) needs an Apple chip;
+        # where it fails (e.g. Intel Macs), libx264 is used instead.
+        encoders.insert(0, ["-c:v", "h264_videotoolbox", "-q:v", "80", "-pix_fmt", "yuv420p", "-tag:v", "avc1"])
     # "-fps_mode" needs FFmpeg 5.1+; older builds only know "-vsync".
     return [["-vf", f"fps={fps}", option, "cfr", *encoder]
             for option in ("-fps_mode", "-vsync") for encoder in encoders]
