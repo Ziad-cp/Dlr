@@ -31,7 +31,7 @@ class ConfigTest(unittest.TestCase):
 
     def test_save_without_a_choice_keeps_logins_off(self):
         config.save({"output_dir": str(self.dir)})
-        self.assertEqual(json.loads(config.CONFIG_PATH.read_text())["cookies_browser"], "off")
+        self.assertEqual(json.loads(config.CONFIG_PATH.read_text(encoding="utf-8"))["cookies_browser"], "off")
 
 
 if __name__ == "__main__":

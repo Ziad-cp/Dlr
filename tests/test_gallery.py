@@ -32,7 +32,7 @@ class CommandTest(unittest.TestCase):
 
     def test_private_settings(self):
         args = gallery.command("https://x.com/a/status/1", self.work, "/ff")
-        config = json.loads(Path(args[args.index("--config-json") + 1]).read_text())
+        config = json.loads(Path(args[args.index("--config-json") + 1]).read_text(encoding="utf-8"))
         self.assertEqual(config["cache"]["file"], ":memory:")  # no cache on disk
         self.assertEqual(config["extractor"]["base-directory"], self.work)
         self.assertIsNone(config["extractor"]["archive"])
