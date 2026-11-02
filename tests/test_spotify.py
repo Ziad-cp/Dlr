@@ -8,7 +8,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def entity(name):
-    return spotify.parse_embed((FIXTURES / name).read_text())
+    return spotify.parse_embed((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 class EmbedTest(unittest.TestCase):

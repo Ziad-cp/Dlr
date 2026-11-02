@@ -25,7 +25,7 @@ import PyInstaller.__main__
 ROOT = pathlib.Path(__file__).resolve().parent
 NAME = "Dlr"
 BUNDLE_ID = "com.local.dlr"
-VERSION = re.search(r'__version__ = "([^"]+)"', (ROOT / "app.py").read_text()).group(1)
+VERSION = re.search(r'__version__ = "([^"]+)"', (ROOT / "app.py").read_text(encoding="utf-8")).group(1)
 ICON = ROOT / "packaging" / "icon.icns"
 TOOLS = {"ffmpeg": "FFmpeg", "deno": "Deno"}  # folder in packaging/ -> name
 
