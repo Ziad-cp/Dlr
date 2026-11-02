@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+# yt-dlp downloaded for the app by the build (see .github/workflows/build.yml)
+app/src/main/res/raw/

@@ -296,6 +296,9 @@ def download_cli(args: list[str]) -> int:
     except dl.DownloaderError as e:
         print(f"ERROR: {e}")
         return 1
+    except Exception as e:  # e.g. yt-dlp's own errors: a plain message, never a traceback
+        print(f"ERROR: {dl.friendly_error(e)}")
+        return 1
     print(result["path"])
     return 0
 
@@ -306,6 +309,7 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--version":
         note = f"\n{updater.active['note']}" if updater.active["note"] else ""
         print(f"Dlr {__version__}, yt-dlp {dl.ytdlp_version()} ({updater.active['source']}){note}")
+        print(f"FFmpeg: {dl.find_ffmpeg() or 'not found'}")
         sys.exit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "--update-ytdlp":
         print(dl.update_ytdlp()[1])  # same as the Update button
