@@ -97,6 +97,8 @@ Applications to the Trash. On Android, press and hold the Dlr icon › **Uninsta
 
 There's no Dlr for iPhone or iPad. Apple only lets you install apps from the App Store, and
 the App Store doesn't allow apps that download videos from YouTube and similar sites.
+Other ways (like sideloading or alternative app stores) either stop working after a few days,
+cost money, or only work in some countries, so Dlr doesn't use them.
 
 What you can do instead: download on a computer with Dlr, then send the file to your iPhone.
 Dlr's videos are made to play on iPhone (in Photos and every video app).
