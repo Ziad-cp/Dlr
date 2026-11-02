@@ -56,7 +56,7 @@ CASES = [
         "https://vt.tiktok.com/ZSXjHUWbe/",
     ]),
     ("instagram", "reel", "video", "video", [
-        "https://www.instagram.com/reel/Chunk8-jurw/",
+        "https://www.instagram.com/reel/C8CvU4ktJoj/",  # (Chunk8-jurw is silent on purpose)
         "https://www.instagram.com/reels/Cop84x6u7CP/",
     ]),
     ("instagram", "video post", "video", "video", [

@@ -232,10 +232,13 @@ def _details(url: str) -> dict:
         return ydl.extract_info(url, download=False, process=False)
 
 
-def find_on_youtube(track: dict, extra_opts=None) -> str:
-    """URL of the YouTube Music song (or else YouTube upload) that best matches the Spotify song."""
+def find_on_youtube(track: dict, music: bool = True) -> str:
+    """URL of the YouTube Music song (or else YouTube upload) that best matches the Spotify song.
+    music=False skips YouTube Music (a second choice, when its song wouldn't download)."""
     query = f"{', '.join(track['artists'][:2])} - {track['name']}"
     try:
+        if not music:
+            raise LookupError
         # YouTube Music's "Songs" are the official recordings. Their search results don't say
         # how long each one is, so the first few are opened and checked.
         for entry in _search(f"https://music.youtube.com/search?q={urllib.parse.quote(query)}#songs", 3):
@@ -244,7 +247,9 @@ def find_on_youtube(track: dict, extra_opts=None) -> str:
             except Exception:
                 continue
             if _score(track, details) >= _GOOD_ENOUGH:
-                return f"https://music.youtube.com/watch?v={details['id']}"
+                # Same song, same ID: downloading through youtube.com is more reliable than
+                # music.youtube.com (whose streams can stall), and keeps the album details.
+                return f"https://www.youtube.com/watch?v={details['id']}"
     except Exception:
         pass  # YouTube Music can't be searched right now: fall back to YouTube
     try:
