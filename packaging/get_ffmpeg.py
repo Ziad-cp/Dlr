@@ -7,8 +7,8 @@ build.py copies that folder into the app. Every download is checked before it's 
 
 Windows  BtbN/FFmpeg-Builds on GitHub (the builds linked from ffmpeg.org), newest release
          branch, "gpl-shared" variant. Must match the SHA-256 in that release's checksums.sha256.
-macOS    Martin Riedl's static builds (also linked from ffmpeg.org), for this Mac's chip.
-         Must carry a valid Apple-issued code signature, and be built for this chip.
+macOS    Martin Riedl's static builds (also linked from ffmpeg.org), for Apple chips (arm64).
+         Must carry a valid Apple-issued code signature, and be built for arm64.
 
 Both must run, and include the H.264 (libx264) and MP3 (libmp3lame) encoders Dlr uses.
 """
@@ -28,7 +28,7 @@ import zipfile
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE / "ffmpeg"
 BTBN = "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/tags/latest"
-RIEDL = "https://ffmpeg.martin-riedl.de/redirect/latest/macos/{arch}/release/{tool}.zip"
+RIEDL = "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/{tool}.zip"
 REQUIRED = ("--enable-libx264", "--enable-libmp3lame")
 
 
@@ -75,10 +75,11 @@ def windows() -> str:
 
 
 def macos() -> str:
-    arch = {"arm64": "arm64", "x86_64": "amd64"}[platform.machine()]
+    if platform.machine() != "arm64":
+        sys.exit("The Mac app is for Apple chips (M1 or newer) only: build it on an Apple-chip Mac.")
     lines = []
     for tool in ("ffmpeg", "ffprobe"):
-        url = RIEDL.format(arch=arch, tool=tool)
+        url = RIEDL.format(tool=tool)
         data = fetch(url)
         with zipfile.ZipFile(io.BytesIO(data)) as z:
             member = next(n for n in z.namelist() if n.rsplit("/", 1)[-1] == tool)
@@ -90,8 +91,8 @@ def macos() -> str:
         subprocess.run(["codesign", "--verify", "--strict", "-R", "=anchor apple generic", str(target)],
                        check=True)
         archs = subprocess.run(["lipo", "-archs", str(target)], capture_output=True, text=True).stdout
-        if platform.machine() not in archs.split():
-            sys.exit(f"{tool} is built for {archs.strip()}, not {platform.machine()}.")
+        if archs.split() != ["arm64"]:
+            sys.exit(f"{tool} is built for {archs.strip()}, not arm64 (Apple chips).")
         lines.append(f"{tool}: {url}, SHA-256 {hashlib.sha256(data).hexdigest()}")
     return "macOS static build by Martin Riedl, https://ffmpeg.martin-riedl.de\n" + "\n".join(lines)
 

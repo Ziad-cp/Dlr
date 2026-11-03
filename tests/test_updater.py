@@ -84,7 +84,7 @@ class DenoChecksumTest(unittest.TestCase):
 
     def test_other_file_is_refused(self):
         with self.assertRaises(SystemExit):
-            self.get_deno.expected_sha256("ab" * 32 + "  deno-x86_64-apple-darwin.zip\n", "deno-aarch64-apple-darwin.zip")
+            self.get_deno.expected_sha256("ab" * 32 + "  deno-aarch64-unknown-linux-gnu.zip\n", "deno-aarch64-apple-darwin.zip")
 
 
 if __name__ == "__main__":

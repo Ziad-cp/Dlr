@@ -1,6 +1,6 @@
 # Builds the downloadable apps on GitHub's Mac, Windows and Linux computers.
 #
-# Every push: builds and tests the Mac (Apple chip and Intel), Windows and Android apps (the
+# Every push: builds and tests the Mac (Apple chip only), Windows and Android apps (the
 #             Android app on an Android emulator). They can be downloaded from the run's
 #             "Artifacts" for testing.
 # A tag v1.2.3: also publishes them as a GitHub Release, where anyone can download them.
@@ -34,9 +34,6 @@ jobs:
           - name: Mac (Apple chip)
             os: macos-15
             file: Dlr-mac-apple-silicon.dmg
-          - name: Mac (Intel)
-            os: macos-15-intel
-            file: Dlr-mac-intel.dmg
           - name: Windows
             os: windows-2022
             file: Dlr-windows-setup.exe
@@ -301,13 +298,12 @@ jobs:
 
           | Your computer | Download |
           | --- | --- |
-          | **Mac with an Apple chip** (M1, M2, M3, M4…) | **Dlr-mac-apple-silicon.dmg** |
-          | **Mac with an Intel chip** (older Macs) | **Dlr-mac-intel.dmg** |
+          | **Mac with an Apple chip** (M1 or newer, macOS 12 Monterey or newer) | **Dlr-mac-apple-silicon.dmg** |
           | **Windows 10 or 11** | **Dlr-windows-setup.exe** |
           | **Android phone or tablet** (Android 10 or newer) | **Dlr-android.apk** |
           | Older Android phones (32-bit) | Dlr-android-32-bit.apk |
 
-          Not sure which Mac you have? Click the Apple menu (top-left corner of the screen) › **About This Mac**. "Chip: Apple M…" means Apple chip; "Processor: … Intel" means Intel.
+          **Mac: Apple Silicon (M1 or newer) only.** To check, click the Apple menu (top-left corner of the screen) › **About This Mac**: it should say "Chip: Apple M…".
 
           **Mac, first launch:** open the .dmg and drag Dlr to Applications, then open Dlr. When macOS says it can't check Dlr, click **Done**, go to **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, enter your password, then click **Open**.
 

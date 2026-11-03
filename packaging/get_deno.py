@@ -6,9 +6,9 @@ Puts deno (deno.exe on Windows) and a NOTICE.txt into packaging/deno/. build.py 
 folder into the app. Every download is checked before it's used:
 
 - Only from the official releases at github.com/denoland/deno, newest release, for this
-  computer's chip (Mac: Apple chip or Intel; Windows: x64).
+  computer (Mac: Apple chip only; Windows: x64).
 - Must match the SHA-256 published next to it in the same release (<file>.sha256sum).
-- macOS: must also carry a valid Apple-issued code signature and be built for this chip.
+- macOS: must also carry a valid Apple-issued code signature and be built for Apple chips (arm64).
 - Must run, and be Deno 2 or newer (what yt-dlp needs).
 """
 import hashlib
@@ -29,7 +29,6 @@ OUT = HERE / "deno"
 LATEST = "https://api.github.com/repos/denoland/deno/releases/latest"
 TARGETS = {
     ("darwin", "arm64"): "aarch64-apple-darwin",
-    ("darwin", "x86_64"): "x86_64-apple-darwin",
     ("win32", "AMD64"): "x86_64-pc-windows-msvc",
 }
 
@@ -63,7 +62,8 @@ def expected_sha256(text: str, name: str) -> str:
 def download() -> str:
     target = TARGETS.get((sys.platform, platform.machine()))
     if not target:
-        sys.exit(f"No Deno build for {sys.platform} {platform.machine()}.")
+        sys.exit(f"No Deno build for {sys.platform} {platform.machine()} "
+                 "(the Mac app is for Apple chips only).")
     release = json.loads(fetch(LATEST))
     assets = {a["name"]: a["browser_download_url"] for a in release["assets"]}
     name = f"deno-{target}.zip"
@@ -88,8 +88,8 @@ def download() -> str:
         subprocess.run(["codesign", "--verify", "--strict", "-R", "=anchor apple generic", str(tool)],
                        check=True)
         archs = subprocess.run(["lipo", "-archs", str(tool)], capture_output=True, text=True).stdout
-        if platform.machine() not in archs.split():
-            sys.exit(f"deno is built for {archs.strip()}, not {platform.machine()}.")
+        if archs.split() != ["arm64"]:
+            sys.exit(f"deno is built for {archs.strip()}, not arm64 (Apple chips).")
     return (f"{name} from https://github.com/denoland/deno/releases/tag/{release['tag_name']}, "
             f"SHA-256 {actual}")
 
