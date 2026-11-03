@@ -95,6 +95,38 @@ def read_clipboard() -> str:
         return ""
 
 
+def clipboard_link(text: str) -> str:
+    """Only a valid web link found in the clipboard's text, never its other text."""
+    match = re.search(r"https?://[^\s<>\"']+", (text or "")[:20000], re.I)
+    if not match:
+        return ""
+    try:
+        return safety.check_url(match.group(0), resolve=False)
+    except safety.UnsafeInput:
+        return ""
+
+
+class LaunchClipboard:
+    """Links the page may fill in from the clipboard when the window comes to the front.
+
+    A link that was already on the clipboard when Dlr opened (usually the last one
+    downloaded) is never offered, so every launch starts with an empty link field.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._at_launch = clipboard_link(read_clipboard())
+
+    def new_link(self) -> str:
+        link = clipboard_link(read_clipboard())
+        with self._lock:
+            if self._at_launch is not None:
+                if link == self._at_launch:
+                    return ""
+                self._at_launch = None  # copied something else: from now on every link counts
+        return link
+
+
 def _bridge(fallback):
     """Wrap a method the page can call: bad arguments or unexpected errors never
     reach the page as Python error text, only as a plain message."""
@@ -141,6 +173,7 @@ class Api:
         threading.Thread(target=dl.remove_stale_temp, args=(self._cfg["output_dir"],), daemon=True).start()
         # Update yt-dlp on its own (at most once a day); used from the next launch.
         threading.Thread(target=dl.auto_update, daemon=True).start()
+        self._clipboard = LaunchClipboard()
         self._window = None
 
     def _save(self):
@@ -224,14 +257,8 @@ class Api:
 
     @_bridge("")
     def clipboard(self) -> str:
-        """Only a valid web link found on the clipboard, never the clipboard's other text."""
-        match = re.search(r"https?://[^\s<>\"']+", read_clipboard()[:20000], re.I)
-        if not match:
-            return ""
-        try:
-            return safety.check_url(match.group(0), resolve=False)
-        except safety.UnsafeInput:
-            return ""
+        """A link copied since Dlr opened (see LaunchClipboard)."""
+        return self._clipboard.new_link()
 
     @_bridge(None)
     def choose_folder(self):
@@ -292,6 +319,7 @@ def _forget_webkit_data_on_every_quit():
     class DlrQuitObserver(NSObject):
         def appWillTerminate_(self, notification):
             _forget_webkit_data()
+            dl.forget_deno_cache()
 
     _quit_observer = DlrQuitObserver.alloc().init()
     NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
