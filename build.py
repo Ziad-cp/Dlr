@@ -3,7 +3,9 @@
     python build.py
 
 macOS   -> dist/Dlr.app  and  dist/Dlr-<version>.dmg
-           (drag-to-Applications window; the app is signed "ad hoc" for this Mac)
+           (drag-to-Applications window; the app is signed "ad hoc" for this Mac).
+           Apple chips (M1 or newer) only, macOS 12 Monterey or newer: build it on an
+           Apple-chip Mac.
 Windows -> dist/Dlr/Dlr.exe  (an app folder; packaging/windows/dlr.iss turns it into an installer)
 
 If packaging/ffmpeg/ and packaging/deno/ exist (python packaging/get_ffmpeg.py and
@@ -14,6 +16,7 @@ The GitHub workflow in .github/workflows/build.yml does both.
 """
 import os
 import pathlib
+import platform
 import plistlib
 import re
 import shutil
@@ -28,6 +31,9 @@ BUNDLE_ID = "com.local.dlr"
 VERSION = re.search(r'__version__ = "([^"]+)"', (ROOT / "app.py").read_text(encoding="utf-8")).group(1)
 ICON = ROOT / "packaging" / "icon.icns"
 TOOLS = {"ffmpeg": "FFmpeg", "deno": "Deno"}  # folder in packaging/ -> name
+# The oldest macOS the Mac app runs on: what the bundled FFmpeg and Deno need (both are built
+# for macOS 12). Python, pywebview and the other parts need macOS 11.
+MIN_MACOS = "12.0"
 
 
 def build_app():
@@ -83,6 +89,8 @@ def finish_mac_app() -> pathlib.Path:
         "CFBundleVersion": VERSION,
         "LSApplicationCategoryType": "public.app-category.utilities",
         "NSHumanReadableCopyright": "Personal use.",
+        "LSMinimumSystemVersion": MIN_MACOS,
+        "LSArchitecturePriority": ["arm64"],
     })
     info_path.write_bytes(plistlib.dumps(info))
     add_tools(app / "Contents" / "Frameworks")
@@ -99,7 +107,37 @@ def finish_mac_app() -> pathlib.Path:
     # Info.plist changed, so sign the bundle again (ad hoc: fine for your own Mac).
     subprocess.run(["codesign", "--force", "--deep", "--sign", "-", str(app)], check=True)
     subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    check_min_macos(app)
     return app
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in text.split("."))
+
+
+def check_min_macos(app: pathlib.Path):
+    """Every program and library in the app must run on MIN_MACOS. On GitHub (the builds
+    people download) a newer one stops the build. A local build is only for this Mac, so
+    there it's a warning (Homebrew's Python, for example, is built for the newest macOS)."""
+    too_new = {}
+    for f in app.rglob("*"):
+        if not f.is_file() or f.is_symlink():
+            continue
+        with open(f, "rb") as fh:
+            if fh.read(4) not in (b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"):  # Mach-O
+                continue
+        out = subprocess.run(["vtool", "-show-build", str(f)], capture_output=True, text=True).stdout
+        for minos in re.findall(r"minos (\d+(?:\.\d+)*)", out):
+            if _version(minos) > _version(MIN_MACOS):
+                too_new[str(f.relative_to(app))] = minos
+    if not too_new:
+        print(f"Every part of the app runs on macOS {MIN_MACOS} or newer.")
+        return
+    listing = "\n".join(f"  {name}: macOS {minos}" for name, minos in sorted(too_new.items())[:10])
+    message = (f"{len(too_new)} files in the app need a macOS newer than {MIN_MACOS}:\n{listing}")
+    if os.environ.get("GITHUB_ACTIONS"):
+        sys.exit(message)
+    print(f"Warning (fine for this Mac only): {message}")
 
 
 def make_dmg(app: pathlib.Path) -> pathlib.Path:
@@ -127,6 +165,8 @@ def make_dmg(app: pathlib.Path) -> pathlib.Path:
 
 
 if __name__ == "__main__":
+    if sys.platform == "darwin" and platform.machine() != "arm64":
+        sys.exit("The Mac app is for Apple chips (M1 or newer) only: build it on an Apple-chip Mac.")
     shutil.rmtree(ROOT / "build", ignore_errors=True)
     build_app()
     if sys.platform == "darwin":

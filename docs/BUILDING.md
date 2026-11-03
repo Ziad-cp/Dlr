@@ -16,6 +16,10 @@ the .apk (Android), see the [README](../README.md).
 
 ## Run from source
 
+**Mac: Apple Silicon (M1 or newer) only.** The Mac app runs on macOS 12 Monterey or newer
+(the oldest macOS the bundled FFmpeg and Deno support), and is built and run from source on an
+Apple-chip Mac; `build.py`, `get_ffmpeg.py` and `get_deno.py` stop on any other Mac.
+
 **macOS** (Python 3.12 from [python.org](https://www.python.org/downloads/) or elsewhere):
 
 ```bash
@@ -52,10 +56,17 @@ stops on any mismatch. The app uses only its own Deno, never one installed on th
 
 | Platform | Output |
 | --- | --- |
-| macOS | `dist/Dlr.app` and `dist/Dlr-<version>.dmg` (the workflow renames it `Dlr-mac-apple-silicon.dmg` or `Dlr-mac-intel.dmg`) |
+| macOS | `dist/Dlr.app` and `dist/Dlr-<version>.dmg` (the workflow renames it `Dlr-mac-apple-silicon.dmg`) |
 | Windows | `dist\Dlr\Dlr.exe`, then the installer `Dlr-windows-setup.exe` with [Inno Setup](https://jrsoftware.org/isinfo.php): `iscc /DAppVersion=1.1.0 packaging\windows\dlr.iss` |
 
-PyInstaller can't cross-compile: build the Mac app on a Mac and the Windows app on Windows.
+PyInstaller can't cross-compile: build the Mac app on an Apple-chip Mac and the Windows app on
+Windows.
+
+The Mac app's `Info.plist` sets `LSMinimumSystemVersion` to 12.0 (`MIN_MACOS` in `build.py`).
+After building, `build.py` checks every program and library in the app with `vtool`. If any
+needs a newer macOS, the GitHub build stops; a local build only warns, because it is just for
+that Mac (Homebrew's Python, for example, is built for the newest macOS only). Build release
+apps with Python from python.org, as GitHub does.
 
 ## Build the Android app
 
@@ -102,7 +113,7 @@ site and `--keep` keeps the files. Without `--app` it tests the source code.
 ## Releases
 
 GitHub Actions builds and tests every app on every push (`.github/workflows/build.yml`):
-macOS (Apple silicon and Intel), Windows and Android, including real downloads and an
+macOS (Apple Silicon only), Windows and Android, including real downloads and an
 Android emulator run.
 
 To publish a release:
@@ -114,7 +125,7 @@ To publish a release:
 
 The file names are the same for every version, so the README's links
 (`https://github.com/Ziad-cp/Dlr/releases/latest/download/<file>`) always give the newest one:
-`Dlr-mac-apple-silicon.dmg`, `Dlr-mac-intel.dmg`, `Dlr-windows-setup.exe`, `Dlr-android.apk`
+`Dlr-mac-apple-silicon.dmg`, `Dlr-windows-setup.exe`, `Dlr-android.apk`
 and `Dlr-android-32-bit.apk`.
 
 ## Command-line mode

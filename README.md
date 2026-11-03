@@ -19,10 +19,13 @@
 
 | Platform | Download | Requires |
 | --- | --- | --- |
-| **macOS** (Apple chip) | [Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg) | M1 or newer |
-| **macOS** (Intel) | [Dlr-mac-intel.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-intel.dmg) | Intel Mac |
+| **macOS** (Apple Silicon) | [Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg) | M1 or newer, macOS 12 Monterey or newer |
 | **Windows** | [Dlr-windows-setup.exe](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-windows-setup.exe) | Windows 10 or 11 |
 | **Android** | [Dlr-android.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android.apk) | Android 10 or newer |
+
+**Mac: Apple Silicon (M1 or newer) only**, on macOS 12 Monterey or newer (the oldest macOS
+the bundled FFmpeg and Deno run on). To check your Mac: Apple menu › **About This Mac** should
+say "Chip: Apple M…".
 
 These links always give the newest version. Older 32-bit Android phones:
 [Dlr-android-32-bit.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android-32-bit.apk).
@@ -40,9 +43,6 @@ Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it 
 3. Open **System Settings › Privacy & Security**, scroll down to **Security**, and click
    **Open Anyway** next to "Dlr was blocked".
 4. Enter your Mac password, then click **Open**. From now on Dlr opens normally.
-
-Not sure which Mac you have? Apple menu › **About This Mac**: "Chip: Apple M…" means Apple
-chip; "Processor: … Intel" means Intel.
 
 **Windows:** on "Windows protected your PC", click **More info › Run anyway**.
 **Android:** allow installing from your browser when asked. If Play Protect warns you,
