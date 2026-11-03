@@ -1,15 +1,14 @@
-# Builds the downloadable apps on GitHub's Mac, Windows and Linux computers.
+# Builds the Mac app (Apple chips) on GitHub's Mac computers.
 #
-# Every push: builds and tests the Mac (Apple chip only), Windows and Android apps (the
-#             Android app on an Android emulator). They can be downloaded from the run's
+# Every push: builds and tests Dlr-mac-apple-silicon.dmg. It can be downloaded from the run's
 #             "Artifacts" for testing.
-# A tag v1.2.3: also publishes them as a GitHub Release, where anyone can download them.
-#             The file names never change between versions, so these links always give
-#             the newest one: https://github.com/Ziad-cp/Dlr/releases/latest/download/<file>
+# A tag v1.2.3: also publishes it as a GitHub Release, with its SHA-256 checksum. The file name
+#             never changes between versions, so this link always gives the newest one:
+#             https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg
 #             Either push a tag (git tag v1.1.0 && git push origin v1.1.0), or on GitHub:
 #             Releases › Draft a new release › tag v1.1.0 › Publish. The files are added
 #             about 10 minutes later. The tag must match __version__ in app.py.
-name: Build apps
+name: Build the Mac app
 
 on:
   push:
@@ -24,23 +23,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  DMG: Dlr-mac-apple-silicon.dmg
+
 jobs:
   build:
-    name: ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Mac (Apple chip)
-            os: macos-15
-            file: Dlr-mac-apple-silicon.dmg
-          - name: Windows
-            os: windows-2022
-            file: Dlr-windows-setup.exe
-    runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        shell: bash
+    name: Mac (Apple chip)
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
 
@@ -67,36 +56,24 @@ jobs:
       - name: Build the app
         run: python build.py
 
-      - name: Make the Mac disk image
-        if: runner.os == 'macOS'
-        run: mv dist/Dlr-*.dmg "dist/${{ matrix.file }}"
-
-      - name: Make the Windows installer
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          $version = (Select-String -Path app.py -Pattern '^__version__ = "(.+)"').Matches[0].Groups[1].Value
-          & $iscc "/DAppVersion=$version" packaging\windows\dlr.iss
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Name the disk image
+        run: mv dist/Dlr-*.dmg "dist/$DMG"
 
       - name: Test that the app starts and finds its FFmpeg, Deno and gallery-dl
         timeout-minutes: 5
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
+          APP=dist/Dlr.app/Contents/MacOS/Dlr
           "$APP" --version 2>&1 | tee version.txt
           grep -q "^Dlr " version.txt
-          grep "^FFmpeg: " version.txt | grep -qv "not found"
-          grep -Eq "^FFmpeg: .*(Frameworks/ffmpeg|_internal.ffmpeg)" version.txt   # its own, not one on the computer
-          grep -Eq "^Deno: .*(Frameworks/deno|_internal.deno)" version.txt
+          grep -q "^FFmpeg: .*Frameworks/ffmpeg" version.txt   # its own, not one on the computer
+          grep -q "^Deno: .*Frameworks/deno" version.txt
           grep -Eq "^gallery-dl: [0-9]" version.txt
           grep -q "^Impersonation (TikTok): yes" version.txt
 
       - name: Test real downloads (video with conversion to H.264, and MP3)
         timeout-minutes: 10
         run: |
-          if [ "$RUNNER_OS" = "macOS" ]; then APP=dist/Dlr.app/Contents/MacOS/Dlr; else APP=dist/Dlr/Dlr.exe; fi
+          APP=dist/Dlr.app/Contents/MacOS/Dlr
           mkdir -p test-download
           ok=0
           # Public test videos from sites that don't block GitHub's computers. The first is an
@@ -117,7 +94,7 @@ jobs:
       # green tick. Run tests/live_links.py on a Mac instead. To run it here anyway (e.g. on a
       # self-hosted runner), set the repository variable RUN_SOCIAL_TESTS to true.
       - name: Social-media link tests — SKIPPED on GitHub (sites block datacenter IPs; run tests/live_links.py on a Mac)
-        if: vars.RUN_SOCIAL_TESTS == 'true' && runner.os == 'macOS'
+        if: vars.RUN_SOCIAL_TESTS == 'true'
         timeout-minutes: 60
         run: CI= python tests/live_links.py --app dist/Dlr.app
 
@@ -140,136 +117,33 @@ jobs:
             echo "| Spotify | track, album, playlist | skipped |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Open the app and take a screenshot (Mac)
-        if: runner.os == 'macOS'
+      - name: Open the app and take a screenshot
         timeout-minutes: 5
         run: |
           mkdir -p screenshots
           open dist/Dlr.app
           sleep 25
           pgrep -x Dlr >/dev/null || { echo "Dlr closed by itself"; exit 1; }
-          screencapture -x "screenshots/${{ matrix.file }}.png" || echo "::warning::No screenshot"
+          screencapture -x "screenshots/Dlr-mac.png" || echo "::warning::No screenshot"
           pkill -x Dlr || true
 
-      - name: Open the app and take a screenshot (Windows)
-        if: runner.os == 'Windows'
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force screenshots | Out-Null
-          $p = Start-Process dist\Dlr\Dlr.exe -PassThru
-          Start-Sleep 25
-          if ($p.HasExited) { Write-Error "Dlr closed by itself (exit code $($p.ExitCode))"; exit 1 }
-          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-          $bmp.Save("screenshots\${{ matrix.file }}.png")
-          Stop-Process -Id $p.Id -Force
-
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: screenshot-${{ matrix.file }}
+          name: screenshot-mac
           path: screenshots/
           if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.file }}
-          path: dist/${{ matrix.file }}
-          if-no-files-found: error
-
-  android:
-    name: Android
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.11.1"
-
-      - name: Download the newest yt-dlp (checked against its official checksum)
-        run: |
-          cd "$RUNNER_TEMP"
-          curl -fsSL -o yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp
-          curl -fsSL -o SHA2-256SUMS https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS
-          grep -E '  yt-dlp$' SHA2-256SUMS | sha256sum -c -
-          mkdir -p "$GITHUB_WORKSPACE/android/app/src/main/res/raw"
-          cp yt-dlp "$GITHUB_WORKSPACE/android/app/src/main/res/raw/ytdlp"
-
-      - name: Set up the signing key
-        env:
-          KEYSTORE_BASE64: ${{ secrets.DLR_KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/dlr.keystore"
-            echo "DLR_KEYSTORE=$RUNNER_TEMP/dlr.keystore" >> "$GITHUB_ENV"
-          else
-            echo "::warning::No DLR_KEYSTORE_BASE64 secret, so the APK is signed with a temporary key (see README)."
-          fi
-
-      - name: Unit tests and build
-        env:
-          DLR_KEYSTORE_PASSWORD: ${{ secrets.DLR_KEYSTORE_PASSWORD }}
-          DLR_KEY_ALIAS: ${{ secrets.DLR_KEY_ALIAS }}
-          DLR_KEY_PASSWORD: ${{ secrets.DLR_KEY_PASSWORD }}
-        run: |
-          gradle -p android --no-daemon testDebugUnitTest assembleRelease
-          mkdir -p dist
-          cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/Dlr-android.apk
-          cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/Dlr-android-32-bit.apk
-          ls -la dist
-
-      - name: Enable the emulator's hardware acceleration
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Test on an Android emulator
-        timeout-minutes: 45
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          disk-size: 6000M
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: |
-            gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.EngineTest
-            gradle -p android --no-daemon connectedDebugAndroidTest -PuniversalApk -Pandroid.testInstrumentationRunnerArguments.class=io.github.ziadcp.dlr.RealDownloadTest
-            gradle -p android --no-daemon assembleDebug -PuniversalApk
-            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
-            adb shell am start -W -n io.github.ziadcp.dlr/.MainActivity
-            sleep 30
-            mkdir -p screenshots && adb exec-out screencap -p > screenshots/android.png
-            adb shell pidof io.github.ziadcp.dlr
-
-      - uses: actions/upload-artifact@v5
-        if: always()
-        with:
-          name: screenshot-android
-          path: screenshots/
-          if-no-files-found: ignore
-
-      - uses: actions/upload-artifact@v5
-        with:
-          name: Dlr-android
-          path: dist/*.apk
+          name: ${{ env.DMG }}
+          path: dist/${{ env.DMG }}
           if-no-files-found: error
 
   release:
     name: Publish the release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, android]
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -283,40 +157,34 @@ jobs:
 
       - uses: actions/download-artifact@v6
         with:
+          name: ${{ env.DMG }}
           path: files
-          pattern: Dlr-*
-          merge-multiple: true
 
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd files
-          sha256sum * > SHA256SUMS.txt
+          sha256sum "$DMG" > "$DMG.sha256"
           cat > ../notes.md <<'EOF'
           ## Download
 
-          | Your computer | Download |
-          | --- | --- |
-          | **Mac with an Apple chip** (M1 or newer, macOS 12 Monterey or newer) | **Dlr-mac-apple-silicon.dmg** |
-          | **Windows 10 or 11** | **Dlr-windows-setup.exe** |
-          | **Android phone or tablet** (Android 10 or newer) | **Dlr-android.apk** |
-          | Older Android phones (32-bit) | Dlr-android-32-bit.apk |
+          **Dlr-mac-apple-silicon.dmg**: for Macs with an Apple chip (M1 or newer), macOS 12 Monterey or newer.
 
           **Mac: Apple Silicon (M1 or newer) only.** To check, click the Apple menu (top-left corner of the screen) › **About This Mac**: it should say "Chip: Apple M…".
 
           **Mac, first launch:** open the .dmg and drag Dlr to Applications, then open Dlr. When macOS says it can't check Dlr, click **Done**, go to **System Settings › Privacy & Security**, scroll down and click **Open Anyway**, enter your password, then click **Open**.
 
-          Everything Dlr needs is included (on the Mac: yt-dlp, gallery-dl, FFmpeg and Deno). You don't need to install anything else.
-          Step-by-step instructions: https://github.com/Ziad-cp/Dlr#download-and-install
+          Everything Dlr needs is included (yt-dlp, gallery-dl, FFmpeg and Deno). You don't need to install anything else.
+          Step-by-step instructions: https://github.com/Ziad-cp/Dlr#download
           EOF
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # The release was created on the GitHub website: add the files (and notes if it has none).
-            gh release upload "$GITHUB_REF_NAME" * --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$GITHUB_REF_NAME" "$DMG" "$DMG.sha256" --clobber --repo "$GITHUB_REPOSITORY"
             if [ -z "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body)" ]; then
               gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file ../notes.md
             fi
           else
-            gh release create "$GITHUB_REF_NAME" * --repo "$GITHUB_REPOSITORY" \
+            gh release create "$GITHUB_REF_NAME" "$DMG" "$DMG.sha256" --repo "$GITHUB_REPOSITORY" \
               --title "Dlr ${GITHUB_REF_NAME#v}" --notes-file ../notes.md
           fi

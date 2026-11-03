@@ -71,15 +71,11 @@ class QualityTest(unittest.TestCase):
         self.assertEqual(picked["format_id"], "vp9+opus")
 
     def test_hardware_h264_first_then_software(self):
-        timing = {"fps": 25.0, "peak_fps": 25.0}
-        with mock.patch.object(dl.sys, "platform", "darwin"):
-            attempts = dl._encode_args(timing)
+        attempts = dl._encode_args({"fps": 25.0, "peak_fps": 25.0})
         codecs = [a[a.index("-c:v") + 1] for a in attempts]
         self.assertEqual(codecs[:2], ["h264_videotoolbox", "libx264"])
         self.assertIn("80", attempts[0])  # high-quality setting
         self.assertNotIn("hevc_videotoolbox", codecs)
-        with mock.patch.object(dl.sys, "platform", "win32"):
-            self.assertEqual({a[a.index("-c:v") + 1] for a in dl._encode_args(timing)}, {"libx264"})
 
     def test_mp3_is_320k(self):
         opts = dl.build_opts("mp3", "/tmp")
@@ -124,7 +120,6 @@ class ErrorTest(unittest.TestCase):
     def test_no_install_commands(self):
         for _, text in dl._ERRORS:
             self.assertNotIn("brew", text)
-            self.assertNotIn("winget", text)
 
     def test_long_unknown_errors_are_hidden(self):
         self.assertEqual(dl.friendly_error(Exception("x" * 500)), "Something went wrong. Try again in a few minutes.")
@@ -200,7 +195,6 @@ class ToolsTest(unittest.TestCase):
         self.assertEqual([t["name"] for t in missing], ["FFmpeg", "Deno"])
         for tool in missing:
             self.assertNotIn("brew", str(tool))
-            self.assertNotIn("winget", str(tool))
 
     def test_packaged_app_uses_only_its_own_deno(self):
         with mock.patch.object(dl.sys, "frozen", True, create=True), \

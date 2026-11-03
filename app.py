@@ -1,4 +1,4 @@
-"""Dlr: video and MP3 downloader, desktop app (macOS and Windows).
+"""Dlr: video and MP3 downloader for the Mac (Apple chips).
 
 A pywebview window shows the HTML UI in ui/. Its JavaScript calls the public
 methods of Api below through window.pywebview.api.
@@ -49,48 +49,14 @@ UI_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "ui"
 
 
 def reveal(path: str):
-    """Show a file in Finder / Explorer."""
-    if sys.platform == "darwin":
-        subprocess.Popen(["open", "-R", path])
-    elif sys.platform == "win32":
-        subprocess.Popen(["explorer", "/select,", os.path.normpath(path)])
-    else:
-        subprocess.Popen(["xdg-open", os.path.dirname(path)])
-
-
-def _windows_clipboard() -> str:
-    import ctypes
-    from ctypes import wintypes
-
-    user32, kernel32 = ctypes.windll.user32, ctypes.windll.kernel32
-    user32.GetClipboardData.restype = wintypes.HANDLE
-    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
-    kernel32.GlobalLock.restype = wintypes.LPVOID
-    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
-    if not user32.OpenClipboard(None):
-        return ""
-    try:
-        handle = user32.GetClipboardData(13)  # CF_UNICODETEXT
-        if not handle:
-            return ""
-        ptr = kernel32.GlobalLock(handle)
-        try:
-            return ctypes.wstring_at(ptr) if ptr else ""
-        finally:
-            kernel32.GlobalUnlock(handle)
-    finally:
-        user32.CloseClipboard()
+    """Show a file in Finder."""
+    subprocess.Popen(["open", "-R", path])
 
 
 def read_clipboard() -> str:
     try:
-        if sys.platform == "darwin":
-            env = dict(os.environ, LANG="en_US.UTF-8")
-            return subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2, env=env).stdout
-        if sys.platform == "win32":
-            return _windows_clipboard()
-        return subprocess.run(["xclip", "-o", "-selection", "clipboard"],
-                              capture_output=True, text=True, timeout=2).stdout
+        env = dict(os.environ, LANG="en_US.UTF-8")
+        return subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2, env=env).stdout
     except Exception:
         return ""
 
@@ -184,10 +150,9 @@ class Api:
 
     @_bridge(None)
     def info(self) -> dict:
-        label = {"darwin": "Show in Finder", "win32": "Show in Explorer"}.get(sys.platform, "Show file")
         return {
             "kind": "desktop",
-            "revealLabel": label,
+            "revealLabel": "Show in Finder",
             "outputDir": self._cfg["output_dir"],
             "ytdlp": dl.ytdlp_version(),
             "ytdlpSource": updater.active["source"],

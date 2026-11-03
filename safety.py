@@ -95,11 +95,8 @@ def read_limited(response, limit: int = MAX_DOWNLOAD_BYTES) -> bytes:
     return data
 
 
-_RESERVED = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}
-
-
 def safe_filename(name, max_bytes: int = 150, fallback: str = "download") -> str:
-    """A file name with no folders, no "..", not hidden, and valid on Mac, Windows and iOS.
+    """A file name with no folders, no "..", not hidden, and valid on the Mac, iPhone and USB drives.
 
     Limited in bytes, not characters: names may be at most 255 bytes and an emoji takes
     4, so this leaves room for " (2)" and yt-dlp's ".f137.webm.part" endings.
@@ -108,10 +105,10 @@ def safe_filename(name, max_bytes: int = 150, fallback: str = "download") -> str
     name = _CONTROL_IN_NAMES.sub("", name)
     name = re.sub(r'[\\/:*?"<>|]+', " ", name)
     name = re.sub(r"\s+", " ", name).strip()
-    name = name.lstrip(". ").rstrip(". ")  # no hidden files, no trailing dots (Windows)
+    name = name.lstrip(". ").rstrip(". ")  # no hidden files, no trailing dots
     name = name.encode("utf-8")[:max_bytes].decode("utf-8", "ignore").rstrip(". ")
-    if not name or name.split(".")[0].lower() in _RESERVED:
-        name = fallback + (f" {name}" if name else "")
+    if not name:
+        name = fallback
     return name
 
 

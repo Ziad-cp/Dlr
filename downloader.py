@@ -134,28 +134,19 @@ BROWSER_NAMES = {"safari": "Safari", "chrome": "Chrome", "firefox": "Firefox", "
 _MAC_BROWSERS = {"com.apple.safari": "safari", "com.google.chrome": "chrome", "org.mozilla.firefox": "firefox",
                  "com.brave.browser": "brave", "com.microsoft.edgemac": "edge", "com.operasoftware.opera": "opera",
                  "com.vivaldi.vivaldi": "vivaldi", "org.chromium.chromium": "chromium"}
-_WINDOWS_BROWSERS = {"chromehtml": "chrome", "msedgehtm": "edge", "firefoxurl": "firefox", "bravehtml": "brave",
-                     "operastable": "opera", "vivaldihtm": "vivaldi"}
 
 
 def default_browser() -> str:
     """The default browser, as yt-dlp names it, or "" if unknown or one yt-dlp can't read."""
     try:
-        if sys.platform == "darwin":
-            import plistlib
-            prefs = os.path.expanduser(
-                "~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist")
-            with open(prefs, "rb") as f:
-                handlers = plistlib.load(f).get("LSHandlers", [])
-            bundle = next((h.get("LSHandlerRoleAll", "") for h in handlers
-                           if h.get("LSHandlerURLScheme") == "https"), "com.apple.safari")
-            return _MAC_BROWSERS.get(bundle.lower(), "")
-        if sys.platform == "win32":
-            import winreg
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations"
-                                 r"\UrlAssociations\https\UserChoice")
-            prog_id = winreg.QueryValueEx(key, "ProgId")[0].lower()
-            return next((b for p, b in _WINDOWS_BROWSERS.items() if prog_id.startswith(p)), "")
+        import plistlib
+        prefs = os.path.expanduser(
+            "~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist")
+        with open(prefs, "rb") as f:
+            handlers = plistlib.load(f).get("LSHandlers", [])
+        bundle = next((h.get("LSHandlerRoleAll", "") for h in handlers
+                       if h.get("LSHandlerURLScheme") == "https"), "com.apple.safari")
+        return _MAC_BROWSERS.get(bundle.lower(), "")
     except Exception:
         pass
     return ""
@@ -172,12 +163,8 @@ def _tool(ffmpeg_dir: str, name: str) -> str:
     return shutil.which(name, path=ffmpeg_dir) or os.path.join(ffmpeg_dir, name)
 
 
-# Options for every FFmpeg/ffprobe run: no input (a windowed Windows app has none, which can
-# make starting a program fail), UTF-8 output whatever the system language, and on Windows
-# no console window flashing up for each run.
+# Options for every FFmpeg/ffprobe run: no input, and UTF-8 output whatever the system language.
 RUN_OPTS = {"stdin": subprocess.DEVNULL, "encoding": "utf-8", "errors": "replace"}
-if sys.platform == "win32":
-    RUN_OPTS["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 
 # FFmpeg may only read local files, and only real audio/video containers: a downloaded
@@ -304,11 +291,12 @@ def _encode_args(timing: dict) -> list[list[str]]:
     """Encoder options to try in order, at a constant frame rate of at most 60fps."""
     # Use the fastest rate the video really has so motion stays smooth, capped at 60.
     fps = min(60, round(timing.get("peak_fps") or timing["fps"] or 30)) or 30
-    encoders = [["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-tag:v", "avc1"]]
-    if sys.platform == "darwin":
+    encoders = [
         # The Mac's hardware H.264 encoder: on a 4K VP9 test about 2.3x faster than libx264 at the
         # same quality (SSIM 0.9963 vs 0.9965) and size. If it fails on a video, libx264 is used.
-        encoders.insert(0, ["-c:v", "h264_videotoolbox", "-q:v", "80", "-pix_fmt", "yuv420p", "-tag:v", "avc1"])
+        ["-c:v", "h264_videotoolbox", "-q:v", "80", "-pix_fmt", "yuv420p", "-tag:v", "avc1"],
+        ["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p", "-tag:v", "avc1"],
+    ]
     # "-fps_mode" needs FFmpeg 5.1+; older builds only know "-vsync".
     return [["-vf", f"fps={fps}", option, "cfr", *encoder]
             for option in ("-fps_mode", "-vsync") for encoder in encoders]
@@ -502,7 +490,7 @@ def _base_opts(url: str = "") -> dict:
         "no_warnings": True,
         "noprogress": True,
         "logger": _QuietLogger(),
-        "windowsfilenames": True,
+        "windowsfilenames": True,  # no : ? * " < > | in names (Finder shows ":" as "/")
         "cachedir": False,  # yt-dlp keeps nothing on disk between downloads
     }
     ffmpeg = find_ffmpeg()
@@ -1717,9 +1705,8 @@ def run_job_in_child(request: dict, *, progress, status, title, cancelled) -> di
     """Run one download in a new Dlr process (Dlr --job), which loads the newest yt-dlp and
     gallery-dl. The request goes in as JSON on stdin; progress comes back as JSON lines.
     Raises DownloaderError or JobCancelled."""
-    extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     proc = subprocess.Popen([*gallery.self_command(), "--job"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, env=_child_env(), **extra)
+                            stderr=subprocess.DEVNULL, env=_child_env())
     proc.stdin.write(json.dumps(request).encode("utf-8"))
     proc.stdin.close()
     lines: queue.Queue = queue.Queue()

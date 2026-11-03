@@ -1,4 +1,0 @@
-// Dlr for Android. Build with:  gradle assembleRelease   (Gradle 8.11+, JDK 17, Android SDK)
-plugins {
-    id 'com.android.application' version '8.7.3' apply false
-}

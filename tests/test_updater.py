@@ -76,12 +76,6 @@ class DenoChecksumTest(unittest.TestCase):
         self.assertEqual(self.get_deno.expected_sha256(f"{h}  deno-aarch64-apple-darwin.zip\n",
                                                        "deno-aarch64-apple-darwin.zip"), h)
 
-    def test_powershell_table(self):
-        text = ("\nAlgorithm : SHA256\nHash      : CBA84B26E0DF5AE7F74FC66B86A95B866872A86292EBD84FA1E959927EDD93BF\n"
-                "Path      : C:\\a\\deno\\deno\\target\\release\\deno-x86_64-pc-windows-msvc.zip\n")
-        self.assertEqual(self.get_deno.expected_sha256(text, "deno-x86_64-pc-windows-msvc.zip"),
-                         "cba84b26e0df5ae7f74fc66b86a95b866872a86292ebd84fa1e959927edd93bf")
-
     def test_other_file_is_refused(self):
         with self.assertRaises(SystemExit):
             self.get_deno.expected_sha256("ab" * 32 + "  deno-aarch64-unknown-linux-gnu.zip\n", "deno-aarch64-apple-darwin.zip")

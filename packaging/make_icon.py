@@ -1,4 +1,4 @@
-"""Draw the app icon (packaging/icon.png, icon.icns for Mac, icon.ico for Windows): the link field's gradient ring and a
+"""Draw the app icon (packaging/icon.png and icon.icns): the link field's gradient ring and a
 download arrow on the app's dark background.   python3 packaging/make_icon.py"""
 import math
 import pathlib
@@ -81,7 +81,6 @@ def draw():
 def main():
     icon = draw()
     icon.save(HERE / "icon.png")
-    icon.save(HERE / "icon.ico", sizes=[(n, n) for n in (16, 24, 32, 48, 64, 128, 256)])
     iconset = HERE / "icon.iconset"
     shutil.rmtree(iconset, ignore_errors=True)
     iconset.mkdir()
@@ -90,7 +89,7 @@ def main():
         icon.resize((size * 2, size * 2), Image.LANCZOS).save(iconset / f"icon_{size}x{size}@2x.png")
     subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(HERE / "icon.icns")], check=True)
     shutil.rmtree(iconset)
-    print("Wrote packaging/icon.png, icon.ico and icon.icns")
+    print("Wrote packaging/icon.png and icon.icns")
 
 
 if __name__ == "__main__":
