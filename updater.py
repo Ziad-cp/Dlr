@@ -40,12 +40,7 @@ _TAG = re.compile(r"\d{4}\.\d{2}\.\d{2}(\.\d+)?")
 
 
 def app_dir() -> Path:
-    if sys.platform == "win32":
-        base = Path(os.environ.get("APPDATA", Path.home()))
-    elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Application Support"
-    else:
-        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    base = Path.home() / "Library" / "Application Support"
     return base / "Dlr"
 
 

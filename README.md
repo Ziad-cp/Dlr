@@ -8,7 +8,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/Ziad-cp/Dlr?style=flat-square&color=6d5dfc)](https://github.com/Ziad-cp/Dlr/releases/latest)
 [![Build](https://img.shields.io/github/actions/workflow/status/Ziad-cp/Dlr/build.yml?branch=main&style=flat-square&label=build)](https://github.com/Ziad-cp/Dlr/actions/workflows/build.yml)
-[![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Android-555?style=flat-square)](#download)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%28Apple%20Silicon%29-555?style=flat-square)](#download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
 
 <img src="docs/screenshot.png" alt="Dlr on macOS" width="720">
@@ -17,24 +17,17 @@
 
 ## Download
 
-| Platform | Download | Requires |
-| --- | --- | --- |
-| **macOS** (Apple Silicon) | [Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg) | M1 or newer, macOS 12 Monterey or newer |
-| **Windows** | [Dlr-windows-setup.exe](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-windows-setup.exe) | Windows 10 or 11 |
-| **Android** | [Dlr-android.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android.apk) | Android 10 or newer |
+**[Download Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg)**
 
 **Mac: Apple Silicon (M1 or newer) only**, on macOS 12 Monterey or newer (the oldest macOS
 the bundled FFmpeg and Deno run on). To check your Mac: Apple menu › **About This Mac** should
 say "Chip: Apple M…".
 
-These links always give the newest version. Older 32-bit Android phones:
-[Dlr-android-32-bit.apk](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-android-32-bit.apk).
-All versions are on the [releases page](https://github.com/Ziad-cp/Dlr/releases).
+The link always gives the newest version. All versions, each with its SHA-256 checksum, are
+on the [releases page](https://github.com/Ziad-cp/Dlr/releases). Everything is included: no
+extra software to install. The .dmg is the only way to install Dlr.
 
-Everything is included: no extra software to install. On the Mac, the .dmg is the only way
-to install Dlr.
-
-### First launch on a Mac
+### First launch
 
 Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it once:
 
@@ -43,10 +36,6 @@ Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it 
 3. Open **System Settings › Privacy & Security**, scroll down to **Security**, and click
    **Open Anyway** next to "Dlr was blocked".
 4. Enter your Mac password, then click **Open**. From now on Dlr opens normally.
-
-**Windows:** on "Windows protected your PC", click **More info › Run anyway**.
-**Android:** allow installing from your browser when asked. If Play Protect warns you,
-choose **More details › Install anyway**.
 
 ## Features
 
@@ -71,20 +60,7 @@ choose **More details › Install anyway**.
   saved.
 - **Private.** No account, no history, no logs, no tracking.
 
-### What works where
-
-| | Mac | Windows | Android |
-| --- | :-: | :-: | :-: |
-| Videos from YouTube, TikTok, Instagram, Reddit, X, Facebook and 1,000+ sites | ✓ | ✓ | ✓ |
-| MP3 | ✓ 320 kbps | ✓ 320 kbps | ✓ 192 kbps |
-| Pick a quality | ✓ | ✓ | – |
-| Photo posts, carousels, slideshows | ✓ | ✓ | – |
-| Spotify songs, albums, playlists | ✓ | ✓ | – |
-| Logins from your browser | ✓ | ✓ | – |
-| Share menu (**Share › Dlr**) | – | – | ✓ |
-
-The Mac and Windows apps share the same code. Downloads from each site are tested on a Mac
-(`tests/live_links.py`); the Windows app is built and tested automatically on GitHub.
+Downloads from each site are tested on a Mac with `tests/live_links.py`.
 
 ### Sites that need a login
 
@@ -100,16 +76,16 @@ Some content is only shown to logged-in visitors. Logins are off by default, so 
 
 There's no iOS version. Apple only allows apps from the App Store, which doesn't permit video
 downloaders, and the other routes (sideloading, alternative stores) expire, cost money or are
-limited to some countries. Download on your computer instead: Dlr's MP4s play natively on
+limited to some countries. Download on your Mac instead: Dlr's MP4s play natively on
 iPhone. Send them over AirDrop, or save them to iCloud Drive and use **Save Video** in Files.
 
 ## Keeping it working
 
-Sites change often, so Dlr keeps its download engines up to date: on Mac and Windows it updates
+Sites change often, so Dlr keeps its download engines up to date: it updates
 [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [gallery-dl](https://github.com/mikf/gallery-dl)
 on its own at most once a day, and again after a failed download (at most once an hour; if a
 newer version arrived, it tries that download once more). A dot on the Settings icon means a new yt-dlp is waiting for a restart.
-**Settings › Update** (or **Update** on Android) does it at any time. Updates come only from
+**Settings › Update** does it at any time. Updates come only from
 the official releases (yt-dlp from GitHub, gallery-dl from PyPI) and are verified against
 their published checksums before use.
 
@@ -127,17 +103,16 @@ connections: [SECURITY.md](SECURITY.md).
 
 ## Building from source
 
-See [docs/BUILDING.md](docs/BUILDING.md) for running from source, building each app, the test
+See [docs/BUILDING.md](docs/BUILDING.md) for running from source, building the app, the test
 setup and publishing releases.
 
 ## License
 
 [MIT](LICENSE) © 2026 Ziad Gahlan. Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp),
 [gallery-dl](https://github.com/mikf/gallery-dl), [FFmpeg](https://ffmpeg.org),
-[Deno](https://deno.com) and [pywebview](https://pywebview.flowrl.com/). The released apps
-bundle GPL-licensed components (FFmpeg and gallery-dl, and
-[youtubedl-android](https://github.com/yausername/youtubedl-android) on Android), so those
-binaries are distributed under the GPL v3. License notices ship inside each app.
+[Deno](https://deno.com) and [pywebview](https://pywebview.flowrl.com/). The released app
+bundles GPL-licensed components (FFmpeg and gallery-dl), so it is distributed under the GPL v3.
+License notices ship inside the app.
 
 Only download content you have the right to download. Copy-protected (DRM) services such as
 Netflix or Spotify's own audio aren't supported.

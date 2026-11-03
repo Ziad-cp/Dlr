@@ -20,22 +20,20 @@ pillow==13.0.0
 bottle==0.13.4
 proxy_tools==0.1.0
 typing_extensions==4.16.0
-pyobjc-core==12.2.2 ; sys_platform == "darwin"
-pyobjc-framework-Cocoa==12.2.2 ; sys_platform == "darwin"
-pyobjc-framework-Quartz==12.2.2 ; sys_platform == "darwin"
-pyobjc-framework-Security==12.2.2 ; sys_platform == "darwin"
-pyobjc-framework-UniformTypeIdentifiers==12.2.2 ; sys_platform == "darwin"
-pyobjc-framework-WebKit==12.2.2 ; sys_platform == "darwin"
-pythonnet==3.2.1 ; sys_platform == "win32"
-clr_loader==0.3.1 ; sys_platform == "win32"
+pyobjc-core==12.2.2
+pyobjc-framework-Cocoa==12.2.2
+pyobjc-framework-Quartz==12.2.2
+pyobjc-framework-Security==12.2.2
+pyobjc-framework-UniformTypeIdentifiers==12.2.2
+pyobjc-framework-WebKit==12.2.2
 # Only needed to build the standalone app (build.py)
 pyinstaller==6.22.3
 pyinstaller-hooks-contrib==2026.9
 altgraph==0.17.5
-macholib==1.16.4 ; sys_platform == "darwin"
+macholib==1.16.4
 packaging==26.3
 setuptools==84.2.1
-# Only needed for the disk image (build.py on macOS)
-dmgbuild==1.6.7 ; sys_platform == "darwin"
-ds_store==1.3.3 ; sys_platform == "darwin"
-mac_alias==2.2.3 ; sys_platform == "darwin"
+# Only needed for the disk image (build.py)
+dmgbuild==1.6.7
+ds_store==1.3.3
+mac_alias==2.2.3

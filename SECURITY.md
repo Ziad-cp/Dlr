@@ -51,8 +51,7 @@ with a just-updated yt-dlp: the request goes in as JSON on stdin, never on a com
 
 **Files.** Downloads are written only inside the chosen folder:
 
-- Names are cleaned: no folders, no `..`, no hidden files, no reserved Windows names, length
-  limited in bytes.
+- Names are cleaned: no folders, no `..`, no hidden files, length limited in bytes.
 - An existing file is **never overwritten**. A name is claimed with an exclusive create, then
   the finished file replaces only that claim; same name and extension gets " (2)".
 - Work happens in a private temporary folder that's deleted after every download, error or cancel.
@@ -70,21 +69,20 @@ internet text.
 home) are disabled, also inside the gallery-dl process. Python dependencies come only from PyPI,
 are pinned to exact versions in `requirements.txt`, and are checked with `pip-audit`.
 
-**Deno in the downloadable apps.** yt-dlp needs a JavaScript runtime to solve YouTube's
-challenges. The apps include Deno, fetched by `packaging/get_deno.py` from the official releases
-at `github.com/denoland/deno` for each chip. It must match the SHA-256 published with that
-release, and on a Mac also carry a valid Apple-issued code signature and be built for the right
-chip; it must run and be Deno 2 or newer, or the build stops. The app uses only its own Deno.
+**Deno in the downloadable app.** yt-dlp needs a JavaScript runtime to solve YouTube's
+challenges. The app includes Deno, fetched by `packaging/get_deno.py` from the official releases
+at `github.com/denoland/deno` for Apple chips. It must match the SHA-256 published with that
+release, carry a valid Apple-issued code signature and be built for Apple chips; it must run and
+be Deno 2 or newer, or the build stops. The app uses only its own Deno.
 yt-dlp runs it without network or file access; its update check and prompts are off, and its
 cache goes to a temporary folder that's deleted when Dlr quits, however it quits (including ⌘Q).
 
-**FFmpeg in the downloadable apps.** The apps on the Releases page are built by GitHub Actions
-(`.github/workflows/build.yml`) and include FFmpeg, fetched by `packaging/get_ffmpeg.py` from
-builds that ffmpeg.org links to. The Windows build (BtbN/FFmpeg-Builds on GitHub) must match the
-SHA-256 published in that release; the Mac build (Martin Riedl) must carry a valid Apple-issued
-code signature and be built for the right chip. Both must run and include the encoders Dlr
-uses, or the build stops. The app uses its own FFmpeg before any installed one. Each release
-also lists the SHA-256 of every download in `SHA256SUMS.txt`.
+**FFmpeg in the downloadable app.** The app on the Releases page is built by GitHub Actions
+(`.github/workflows/build.yml`) and includes FFmpeg, fetched by `packaging/get_ffmpeg.py` from
+the Mac builds that ffmpeg.org links to (Martin Riedl). They must carry a valid Apple-issued
+code signature, be built for Apple chips, run and include the encoders Dlr uses, or the build
+stops. The app uses its own FFmpeg before any installed one. Each release also publishes the
+.dmg's SHA-256 in `Dlr-mac-apple-silicon.dmg.sha256`.
 
 ## Privacy
 
@@ -159,35 +157,6 @@ releases have no files attached):
    than the built-in gallery-dl, still matches its checksum and loads cleanly. So a new version
    is used at once, with no restart.
 
-## Android app
-
-The Android app (`android/`) follows the same rules as the desktop app:
-
-- **Links:** `LinkCheck.java` applies the same checks as `safety.py` (web links only, length,
-  hidden characters, no logins in the link, never this phone or the local network, names
-  resolved and checked), with unit tests for each case.
-- **One permission:** internet. Saving to Downloads › Dlr uses Android's MediaStore, which needs
-  no storage permission. No contacts, camera, location or other data.
-- **No shell:** yt-dlp runs as a program with an argument list (youtubedl-android's
-  `ProcessBuilder`), never through a shell. Plugins and config files are off
-  (`--no-plugin-dirs`, `--ignore-config`) and yt-dlp's cache is off.
-- **Files:** downloads happen in a private folder in the app's cache, which is deleted after
-  every download, error or stop (and at the next start if the app was closed). Only the
-  finished file is copied to Downloads; Android never overwrites, it adds " (1)" to a name.
-- **yt-dlp updates:** at most once a day, or with **Update**. Only from
-  `github.com/yt-dlp/yt-dlp/releases/latest` over HTTPS, following redirects only to GitHub's
-  download servers, and only if the file matches the release's official `SHA2-256SUMS` and
-  is a real yt-dlp release (its version is read from inside it). Each APK also comes with the
-  newest yt-dlp, checked the same way when it's built.
-- **Privacy:** no history, logs or analytics; app data is excluded from backups and device
-  transfers.
-- **Network connections:** the site you download from, DNS for the link check, and GitHub for
-  yt-dlp updates.
-
-Limits: the APK is signed with the project's key only if the signing secrets are set up
-(see README); otherwise each build has its own key. Downloads are an Android process that keeps
-running while Dlr is open; if you leave the app, Android may stop a long download.
-
 ## Known limits
 
 - **Redirects inside yt-dlp and gallery-dl:** a public site could still redirect their own
@@ -204,14 +173,11 @@ running while Dlr is open; if you leave the app, Android may stop a long downloa
   Library folder. Anyone who can already write there could change it; its checksum is
   re-checked at every launch, which catches damage but not a deliberate change of both files.
 - **Ad-hoc signature:** the Mac app is signed "ad hoc", not notarized by Apple, so macOS asks
-  you to confirm the first launch (System Settings › Privacy & Security › Open Anyway). The
-  Windows installer isn't code-signed either, so SmartScreen shows a warning first.
+  you to confirm the first launch (System Settings › Privacy & Security › Open Anyway).
 - **Bundled FFmpeg and Deno trust their builders:** the checks prove the downloads are intact
-  and (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
+  and signed by an Apple-registered developer, not that the builder is trustworthy.
 - **Clipboard:** read when the window comes to the front (only a link copied since Dlr opened
   is used).
-- **Windows:** built and tested automatically on GitHub's Windows computers, but less used than
-  the Mac app. Settings live in `%APPDATA%\Dlr\`.
 
 ## Keeping it safe
 

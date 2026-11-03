@@ -1,4 +1,4 @@
-"""Build the app for personal use.
+"""Build the Mac app.
 
     python build.py
 
@@ -6,13 +6,11 @@ macOS   -> dist/Dlr.app  and  dist/Dlr-<version>.dmg
            (drag-to-Applications window; the app is signed "ad hoc" for this Mac).
            Apple chips (M1 or newer) only, macOS 12 Monterey or newer: build it on an
            Apple-chip Mac.
-Windows -> dist/Dlr/Dlr.exe  (an app folder; packaging/windows/dlr.iss turns it into an installer)
 
 If packaging/ffmpeg/ and packaging/deno/ exist (python packaging/get_ffmpeg.py and
 python packaging/get_deno.py), FFmpeg and Deno are copied into the app, so it needs nothing else.
 
-PyInstaller can't cross-compile: build the .exe on Windows and the .app on a Mac.
-The GitHub workflow in .github/workflows/build.yml does both.
+The GitHub workflow in .github/workflows/build.yml builds the downloadable .dmg.
 """
 import os
 import pathlib
@@ -54,13 +52,9 @@ def build_app():
         "--distpath", str(ROOT / "dist"),
         "--workpath", str(ROOT / "build"),
         "--specpath", str(ROOT / "build"),
+        "--osx-bundle-identifier", BUNDLE_ID,
+        "--icon", str(ICON),
     ]
-    if sys.platform == "darwin":
-        args += ["--osx-bundle-identifier", BUNDLE_ID, "--icon", str(ICON)]
-    elif sys.platform == "win32":
-        # An app folder rather than one big .exe: it starts faster, and antivirus programs
-        # are much less likely to flag it by mistake.
-        args += ["--icon", str(ROOT / "packaging" / "icon.ico")]
     PyInstaller.__main__.run(args)
 
 
@@ -165,16 +159,12 @@ def make_dmg(app: pathlib.Path) -> pathlib.Path:
 
 
 if __name__ == "__main__":
-    if sys.platform == "darwin" and platform.machine() != "arm64":
-        sys.exit("The Mac app is for Apple chips (M1 or newer) only: build it on an Apple-chip Mac.")
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        sys.exit("Dlr is a Mac app for Apple chips (M1 or newer): build it on an Apple-chip Mac.")
     shutil.rmtree(ROOT / "build", ignore_errors=True)
     build_app()
-    if sys.platform == "darwin":
-        shutil.rmtree(ROOT / "dist" / NAME, ignore_errors=True)  # loose copy; the .app has it all
-        built = finish_mac_app()
-        image = make_dmg(built)
-        print(f"\nBuilt {built.relative_to(ROOT)} (version {VERSION})\nBuilt {image.relative_to(ROOT)}")
-    elif sys.platform == "win32":
-        add_tools(ROOT / "dist" / NAME / "_internal")
-        print(f"\nBuilt dist/{NAME}/{NAME}.exe (version {VERSION})")
+    shutil.rmtree(ROOT / "dist" / NAME, ignore_errors=True)  # loose copy; the .app has it all
+    built = finish_mac_app()
+    image = make_dmg(built)
+    print(f"\nBuilt {built.relative_to(ROOT)} (version {VERSION})\nBuilt {image.relative_to(ROOT)}")
     shutil.rmtree(ROOT / "build", ignore_errors=True)

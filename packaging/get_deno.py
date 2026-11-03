@@ -2,13 +2,13 @@
 
     python packaging/get_deno.py
 
-Puts deno (deno.exe on Windows) and a NOTICE.txt into packaging/deno/. build.py copies that
+Puts deno and a NOTICE.txt into packaging/deno/. build.py copies that
 folder into the app. Every download is checked before it's used:
 
-- Only from the official releases at github.com/denoland/deno, newest release, for this
-  computer (Mac: Apple chip only; Windows: x64).
+- Only from the official releases at github.com/denoland/deno, newest release, for Apple
+  chips (aarch64-apple-darwin).
 - Must match the SHA-256 published next to it in the same release (<file>.sha256sum).
-- macOS: must also carry a valid Apple-issued code signature and be built for Apple chips (arm64).
+- Must carry a valid Apple-issued code signature and be built for Apple chips (arm64).
 - Must run, and be Deno 2 or newer (what yt-dlp needs).
 """
 import hashlib
@@ -27,10 +27,7 @@ import zipfile
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE / "deno"
 LATEST = "https://api.github.com/repos/denoland/deno/releases/latest"
-TARGETS = {
-    ("darwin", "arm64"): "aarch64-apple-darwin",
-    ("win32", "AMD64"): "x86_64-pc-windows-msvc",
-}
+TARGET = "aarch64-apple-darwin"
 
 
 def fetch(url: str) -> bytes:
@@ -46,27 +43,21 @@ def fetch(url: str) -> bytes:
 
 
 def expected_sha256(text: str, name: str) -> str:
-    """The SHA-256 for name in a .sha256sum file. Deno's are either "<hash>  <name>" lines
-    or PowerShell's Get-FileHash table (Algorithm / Hash / Path)."""
+    """The SHA-256 for name in a .sha256sum file ("<hash>  <name>" lines)."""
     for line in text.splitlines():
         parts = line.split()
-        if len(parts) >= 2 and parts[-1].lstrip("*").rsplit("/", 1)[-1].rsplit("\\", 1)[-1] == name:
+        if len(parts) >= 2 and parts[-1].lstrip("*").rsplit("/", 1)[-1] == name:
             if re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
                 return parts[0].lower()
-    hashes = re.findall(r"\b[0-9a-fA-F]{64}\b", text)
-    if len(hashes) == 1 and name in text:
-        return hashes[0].lower()
     sys.exit(f"No checksum listed for {name}.")
 
 
 def download() -> str:
-    target = TARGETS.get((sys.platform, platform.machine()))
-    if not target:
-        sys.exit(f"No Deno build for {sys.platform} {platform.machine()} "
-                 "(the Mac app is for Apple chips only).")
+    if sys.platform != "darwin" or platform.machine() != "arm64":
+        sys.exit("Dlr is a Mac app for Apple chips (M1 or newer): run this on an Apple-chip Mac.")
     release = json.loads(fetch(LATEST))
     assets = {a["name"]: a["browser_download_url"] for a in release["assets"]}
-    name = f"deno-{target}.zip"
+    name = f"deno-{TARGET}.zip"
     if name not in assets or f"{name}.sha256sum" not in assets:
         sys.exit(f"{name} or its checksum is missing from Deno {release['tag_name']}.")
     expected = expected_sha256(fetch(assets[f"{name}.sha256sum"]).decode("utf-8", "replace"), name)
@@ -74,28 +65,27 @@ def download() -> str:
     actual = hashlib.sha256(data).hexdigest()
     if actual != expected:
         sys.exit(f"Checksum mismatch for {name}: got {actual}, expected {expected}.")
-    exe = "deno.exe" if sys.platform == "win32" else "deno"
+    exe = "deno"
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         member = next((n for n in z.namelist() if n.rsplit("/", 1)[-1] == exe), None)
         if not member:
             sys.exit(f"{name} doesn't contain {exe}.")
         (OUT / exe).write_bytes(z.read(member))
-    if sys.platform == "darwin":
-        tool = OUT / exe
-        tool.chmod(0o755)
-        subprocess.run(["xattr", "-c", str(tool)], check=False)
-        # Must be signed by a developer Apple knows (it's notarized), not just anyone.
-        subprocess.run(["codesign", "--verify", "--strict", "-R", "=anchor apple generic", str(tool)],
-                       check=True)
-        archs = subprocess.run(["lipo", "-archs", str(tool)], capture_output=True, text=True).stdout
-        if archs.split() != ["arm64"]:
-            sys.exit(f"deno is built for {archs.strip()}, not arm64 (Apple chips).")
+    tool = OUT / exe
+    tool.chmod(0o755)
+    subprocess.run(["xattr", "-c", str(tool)], check=False)
+    # Must be signed by a developer Apple knows (it's notarized), not just anyone.
+    subprocess.run(["codesign", "--verify", "--strict", "-R", "=anchor apple generic", str(tool)],
+                   check=True)
+    archs = subprocess.run(["lipo", "-archs", str(tool)], capture_output=True, text=True).stdout
+    if archs.split() != ["arm64"]:
+        sys.exit(f"deno is built for {archs.strip()}, not arm64 (Apple chips).")
     return (f"{name} from https://github.com/denoland/deno/releases/tag/{release['tag_name']}, "
             f"SHA-256 {actual}")
 
 
 def check() -> str:
-    exe = OUT / ("deno.exe" if sys.platform == "win32" else "deno")
+    exe = OUT / "deno"
     env = dict(os.environ, DENO_NO_UPDATE_CHECK="1")
     first = subprocess.run([str(exe), "--version"], capture_output=True, text=True, check=True,
                            env=env).stdout.splitlines()[0]

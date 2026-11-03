@@ -38,7 +38,7 @@ def self_command() -> list[str]:
 
 def child_main(argv: list[str]) -> int:
     """Dlr --gallery-dl ARGS: run gallery-dl (the newest verified one) with ARGS."""
-    # A windowed app may start without standard output (Windows): gallery-dl prints to it.
+    # A windowed app may start without standard output: gallery-dl prints to it.
     for name, fd in (("stdout", 1), ("stderr", 2)):
         if getattr(sys, name) is None:
             setattr(sys, name, open(fd, "w", encoding="utf-8", closefd=False))
@@ -95,8 +95,6 @@ def _env() -> dict:
 
 
 _RUN = {"stdin": subprocess.DEVNULL, "env": None}
-if sys.platform == "win32":
-    _RUN["creationflags"] = subprocess.CREATE_NO_WINDOW
 
 
 def _last_error(stderr: str) -> str:

@@ -6,7 +6,6 @@ file (e.g. from older versions) is erased the next time the app starts.
 """
 import json
 import os
-import sys
 from pathlib import Path
 
 APP_NAME = "Dlr"
@@ -14,12 +13,7 @@ OLD_NAME = "VideoDownloader"  # before the app was renamed
 
 
 def config_dir() -> Path:
-    if sys.platform == "win32":
-        base = Path(os.environ.get("APPDATA", Path.home()))
-    elif sys.platform == "darwin":
-        base = Path.home() / "Library" / "Application Support"
-    else:
-        base = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    base = Path.home() / "Library" / "Application Support"
     return base / APP_NAME
 
 
