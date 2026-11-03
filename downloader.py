@@ -41,6 +41,7 @@ yt_dlp.globals.plugin_dirs.value = []
 # leaves nothing behind. Dlr's child processes share their parent's folder.
 os.environ["DENO_NO_UPDATE_CHECK"] = "1"
 os.environ["DENO_NO_PROMPT"] = "1"
+_deno_dir = None  # set only in the main Dlr process, which owns the folder
 if not os.environ.get("DLR_DENO_DIR"):
     # Leftovers of a Dlr that was force-quit (only our own names, at least a day old).
     for _old in Path(tempfile.gettempdir()).glob("dlr-deno-*"):
@@ -52,6 +53,12 @@ if not os.environ.get("DLR_DENO_DIR"):
     _deno_dir = tempfile.mkdtemp(prefix="dlr-deno-")
     os.environ["DLR_DENO_DIR"] = os.environ["DENO_DIR"] = _deno_dir
     atexit.register(shutil.rmtree, _deno_dir, True)
+
+
+def forget_deno_cache():
+    """Remove Deno's temporary folder now (⌘Q ends the app before the atexit above runs)."""
+    if _deno_dir:
+        shutil.rmtree(_deno_dir, ignore_errors=True)
 
 
 class DownloaderError(Exception):

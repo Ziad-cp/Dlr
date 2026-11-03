@@ -76,7 +76,7 @@ at `github.com/denoland/deno` for each chip. It must match the SHA-256 published
 release, and on a Mac also carry a valid Apple-issued code signature and be built for the right
 chip; it must run and be Deno 2 or newer, or the build stops. The app uses only its own Deno.
 yt-dlp runs it without network or file access; its update check and prompts are off, and its
-cache goes to a temporary folder that's deleted when Dlr quits.
+cache goes to a temporary folder that's deleted when Dlr quits, however it quits (including ⌘Q).
 
 **FFmpeg in the downloadable apps.** The apps on the Releases page are built by GitHub Actions
 (`.github/workflows/build.yml`) and include FFmpeg, fetched by `packaging/get_ffmpeg.py` from
@@ -103,7 +103,8 @@ also lists the SHA-256 of every download in `SHA256SUMS.txt`.
   Disk Access for Safari.
 - **Never read:** contacts or photos.
 - **Read when you switch to the window:** the clipboard, and only to find a link to fill in.
-  Nothing from it is kept.
+  A link that was already there when Dlr opened is never filled in, so every launch starts
+  with an empty link field. Nothing from it is kept.
 - **Network connections (complete list):**
   1. The site you download from: its pages, video/audio servers and thumbnails (for example
      `youtube.com`, `*.googlevideo.com`, `i.ytimg.com`; `tiktok.com`, `*.tiktokcdn-eu.com`).
@@ -207,7 +208,8 @@ running while Dlr is open; if you leave the app, Android may stop a long downloa
   Windows installer isn't code-signed either, so SmartScreen shows a warning first.
 - **Bundled FFmpeg and Deno trust their builders:** the checks prove the downloads are intact
   and (on Mac) signed by an Apple-registered developer, not that the builder is trustworthy.
-- **Clipboard:** read when the window comes to the front (only a link is used).
+- **Clipboard:** read when the window comes to the front (only a link copied since Dlr opened
+  is used).
 - **Windows:** built and tested automatically on GitHub's Windows computers, but less used than
   the Mac app. Settings live in `%APPDATA%\Dlr\`.
 

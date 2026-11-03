@@ -212,6 +212,13 @@ class ToolsTest(unittest.TestCase):
         self.assertTrue(os.path.basename(os.environ.get("DENO_DIR", "")).startswith("dlr-deno-"))
         self.assertEqual(os.environ.get("DENO_NO_UPDATE_CHECK"), "1")
 
+    def test_deno_folder_removed_on_quit(self):
+        folder = tempfile.mkdtemp(prefix="dlr-deno-test-")
+        open(os.path.join(folder, "dep_analysis_cache_v2"), "w").close()
+        with mock.patch.object(dl, "_deno_dir", folder):
+            dl.forget_deno_cache()
+        self.assertFalse(os.path.exists(folder))
+
 
 class FolderTest(unittest.TestCase):
     def test_move_dir_into_never_reuses_a_folder(self):
