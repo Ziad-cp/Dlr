@@ -37,6 +37,8 @@ result with the SHA-256 in that version's release notes (also in
 shasum -a 256 ~/Downloads/Dlr-mac-apple-silicon.dmg
 ```
 
+**Dlr 1.2.0:** `28073c518bf3f40e913c63b63c4d5ff5f276a3e92b04a29ac59b112eaad595d0`
+
 ### First launch
 
 Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it once:
