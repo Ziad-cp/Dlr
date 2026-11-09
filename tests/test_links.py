@@ -17,6 +17,8 @@ class LinksTest(unittest.TestCase):
         self.assertEqual(links.site("https://redd.it/abc"), "reddit")
         self.assertEqual(links.site("https://v.redd.it/abc"), "reddit")
         self.assertEqual(links.site("https://x.com/a/status/1"), "x")
+        self.assertEqual(links.site("https://uk.pinterest.com/pin/1/"), "pinterest")
+        self.assertIn("pinterest", links.GALLERY_SITES)  # image pins go to gallery-dl
         self.assertEqual(links.site("https://example.com/"), "")
         self.assertEqual(links.site("https://notreddit.com/"), "")
 
@@ -34,7 +36,7 @@ class LinksTest(unittest.TestCase):
         for url in ("https://vm.tiktok.com/ZGdm3K8rk/", "https://vt.tiktok.com/ZS4ghQ5py/",
                     "https://www.tiktok.com/t/ZTRC5xgJp", "https://www.instagram.com/share/reel/_gdkGEJBn",
                     "https://www.instagram.com/share/_a7bsO89b", "https://www.reddit.com/r/cats/s/mqNof1kbPG",
-                    "https://redd.it/6rrwyj", "https://spotify.link/abc"):
+                    "https://redd.it/6rrwyj", "https://spotify.link/abc", "https://pin.it/4AbCdEf"):
             self.assertTrue(links.is_share_link(url), url)
         for url in ("https://www.tiktok.com/@a/video/1", "https://www.instagram.com/p/abc/",
                     "https://www.reddit.com/r/cats/comments/abc/x/"):

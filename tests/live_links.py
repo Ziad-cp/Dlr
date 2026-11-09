@@ -9,7 +9,8 @@ Instagram and Reddit block GitHub's datacenter computers).
 Each case downloads 2-3 public links through Dlr's own command line (--download), so it
 runs exactly the app's code, then checks the result with ffprobe:
   - videos are MP4s with both picture and sound (Reddit's are merged from two streams),
-  - photo posts are folders with the photos (and a slideshow's sound as audio.mp3),
+  - photo posts are folders with the photos (and a slideshow's sound as audio.mp3), and every
+    photo opens and is full size (at least MIN_PHOTO_SIDE px on its long side, not a preview),
   - MP3s are about 320 kbps and Spotify ones carry title, artist, album and cover art.
 
 Logins are off unless --logins is given. A link that only works when logged in is reported
@@ -94,6 +95,13 @@ CASES = [
         "https://x.com/captainamerica/status/719944021058060289",
         "https://x.com/LisPower1/status/1001551623938805763",
     ]),
+    ("pinterest", "video pin", "video", "video", [
+        "https://www.pinterest.com/pin/664281013778109217/",
+        "https://www.pinterest.com/pin/1084663891475263837/",
+    ]),
+    ("pinterest", "image pin", "video", "photos", [
+        "https://www.pinterest.com/pin/172896073180205274/",
+    ]),
     ("facebook", "video", "video", "video", [
         "https://www.facebook.com/cnn/videos/10155529876156509/",
     ]),
@@ -112,6 +120,7 @@ MAX_SONGS = "3"
 LOGIN_HINTS = ("needs login", "need login", "needs you to be logged in")
 
 IMAGES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif"}
+MIN_PHOTO_SIDE = 400  # smaller is a preview (logged-out Instagram gives 150 px ones)
 
 
 def ffprobe() -> str:
@@ -167,6 +176,20 @@ def check_mp3(path: Path, tags=False) -> str:
     return ""
 
 
+def check_photos(photos: list[Path]) -> str:
+    """Every photo opens and is full size, not a small preview."""
+    for photo in photos:
+        if not photo.stat().st_size:
+            return f"{photo.name} is empty"
+        v = next((s for s in probe(photo).get("streams", []) if s.get("codec_type") == "video"), {})
+        width, height = v.get("width") or 0, v.get("height") or 0
+        if not width or not height:
+            return f"{photo.name} doesn't open as an image"
+        if max(width, height) < MIN_PHOTO_SIDE:
+            return f"{photo.name} is only {width}x{height} (a preview, not the full photo)"
+    return ""
+
+
 def check(kind: str, path: Path) -> str:
     """"" if the saved file or folder is right, else what's wrong."""
     if not path.exists():
@@ -190,20 +213,24 @@ def check(kind: str, path: Path) -> str:
     if kind == "photos":
         if not photos:
             return "no photos saved"
-        return "" if path.is_file() or len(photos) == len(files) else "unexpected files in the folder"
+        if not path.is_file() and len(photos) != len(files):
+            return "unexpected files in the folder"
+        return check_photos(photos)
     if kind == "slideshow":
         if len(photos) < 2:
             return f"expected the slideshow's photos, got {len(photos)}"
         sound = path / "audio.mp3"
-        return check_mp3(sound) if sound.exists() else "the slideshow's sound (audio.mp3) is missing"
+        if not sound.exists():
+            return "the slideshow's sound (audio.mp3) is missing"
+        return check_photos(photos) or check_mp3(sound)
     if kind == "mixed":
         if not photos or not videos:
             return f"expected photos and videos, got {len(photos)} photos and {len(videos)} videos"
-        return next((f"{v.name}: {e}" for v in videos if (e := check_video_any(v))), "")
+        return check_photos(photos) or next((f"{v.name}: {e}" for v in videos if (e := check_video_any(v))), "")
     if kind == "any":
         if path.is_file() and path.suffix == ".mp4":
             return check_video(path)
-        return "" if photos or videos else "nothing usable saved"
+        return check_photos(photos) if photos or videos else "nothing usable saved"
     raise ValueError(kind)
 
 

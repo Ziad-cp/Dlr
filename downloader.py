@@ -735,15 +735,45 @@ def with_login_retry(run, browser_setting: str, on_retry=lambda: None, url: str 
         if needs_login(e, url) and friendly_error(e) == friendly_error(first):
             name = BROWSER_NAMES[browser]
             if friendly_error(e) == LOGIN_ERROR:
-                raise EngineError(f"This site needs you to be logged in. Dlr tried your {name} login: "
-                                  f"make sure you're logged in to this site in {name}.") from None
+                raise EngineError(_tried_login(browser)) from None
             raise EngineError(f"{friendly_error(e)} (Dlr tried your {name} login: make sure you're "
                               f"logged in to this site in {name}.)") from None
         raise
 
 
+def _tried_login(browser: str) -> str:
+    name = BROWSER_NAMES[browser]
+    return (f"This site needs you to be logged in. Dlr tried your {name} login: "
+            f"make sure you're logged in to this site in {name}.")
+
+
 def _browser_of(extra: dict) -> str:
     return (extra.get("cookiesfrombrowser") or ("",))[0]
+
+
+# Logged out, Instagram can give yt-dlp only small previews of a post's photos (150 px).
+# Photos whose long side is shorter than this are previews: they're never saved.
+MIN_PHOTO_SIDE = 400
+
+
+def image_size(image) -> tuple[int, int]:
+    """(width, height) of an image file or its bytes, or (0, 0) if it can't be read."""
+    try:
+        from PIL import Image
+        with Image.open(io.BytesIO(image) if isinstance(image, bytes) else image) as img:
+            return img.size
+    except Exception:
+        return (0, 0)
+
+
+def is_preview(size: tuple[int, int]) -> bool:
+    return max(size) < MIN_PHOTO_SIDE
+
+
+def previews_error(url: str, browser_setting: str) -> "EngineError":
+    """Only small previews of the photos came back: the full-size ones need a login."""
+    browser = login_browser(browser_setting)
+    return EngineError(_tried_login(browser) if browser else login_message(url))
 
 
 # ---- what a link is, and how to download it ----
@@ -752,7 +782,7 @@ PLAYLIST_ERROR = "That's a playlist or profile. Paste a link to a single video o
 _NO_VIDEO = re.compile(r"no video formats|no media found|there is no video|unsupported url"
                        r"|no video could be found|no suitable extractor", re.I)
 _SITE_NAMES = {"tiktok": "TikTok", "instagram": "Instagram", "reddit": "Reddit", "x": "X",
-               "facebook": "Facebook", "youtube": "YouTube"}
+               "facebook": "Facebook", "youtube": "YouTube", "pinterest": "Pinterest"}
 
 # How each recent link is downloaded, so the download does what the card showed. In memory
 # only, and only the last few: never saved.
@@ -861,6 +891,13 @@ def _gallery_route(url: str, browser_setting: str, raw: dict | None = None) -> d
     else:
         description = str(raw.get("description") or raw.get("title") or "").strip()
         first_photo = next((m["url"] for m in media if m["kind"] == "photo"), "")
+        if first_photo:
+            try:
+                size = image_size(fetch_image(first_photo))
+            except Exception:
+                size = None  # can't tell now: the download checks every photo
+            if size and is_preview(size):
+                raise previews_error(url, browser_setting)
         summary = {
             "title": description.splitlines()[0][:150] if description else "",
             "uploader": raw.get("channel") or raw.get("uploader") or "",
@@ -1277,8 +1314,10 @@ def _fetch_file(url: str, dest: str, headers: dict, limit: int = 200 * 1024 * 10
             f.write(chunk)
 
 
-def _download_media(media: list, url: str, work: str, ffmpeg_dir, on_files, check_cancel) -> list[str]:
-    """Download a post's items as yt-dlp listed them (photos directly, videos with yt-dlp)."""
+def _download_media(media: list, url: str, work: str, ffmpeg_dir, on_files, check_cancel,
+                    browser_setting: str = "off") -> list[str]:
+    """Download a post's items as yt-dlp listed them (photos directly, videos with yt-dlp).
+    Raises a login message rather than saving small previews of the photos."""
     paths = []
     for n, item in enumerate(media, 1):
         check_cancel()
@@ -1286,6 +1325,8 @@ def _download_media(media: list, url: str, work: str, ffmpeg_dir, on_files, chec
             ext = os.path.splitext(urllib.parse.urlsplit(item["url"]).path)[1].lower()
             dest = os.path.join(work, f"item{n:03}{ext if ext[1:] in gallery.IMAGE_EXT else '.jpg'}")
             _fetch_file(item["url"], dest, item["headers"])
+            if is_preview(image_size(dest)):
+                raise previews_error(url, browser_setting)
             paths.append(dest)
         else:
             opts = build_opts("best", work, url)
@@ -1366,7 +1407,8 @@ def _download_gallery(url: str, route: dict, quality: str, folder: str, ffmpeg_d
                     raise EngineError(friendly_error(e)) from None
         if paths is None:
             _empty(work)
-            paths = _download_media(route["media"], url, work, ffmpeg_dir, on_files, check_cancel)
+            paths = _download_media(route["media"], url, work, ffmpeg_dir, on_files, check_cancel,
+                                    browser_setting)
 
         status("processing")
         files = []  # (path, "photo" | "video" | "audio")

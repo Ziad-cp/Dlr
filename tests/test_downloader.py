@@ -1,4 +1,5 @@
 """Download rules: qualities, format choice, errors, logins and retries. Offline."""
+import io
 import os
 import socket
 import tempfile
@@ -212,6 +213,76 @@ class ToolsTest(unittest.TestCase):
         with mock.patch.object(dl, "_deno_dir", folder):
             dl.forget_deno_cache()
         self.assertFalse(os.path.exists(folder))
+
+
+def jpeg(side: int) -> bytes:
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (side, side), "white").save(buf, "JPEG")
+    return buf.getvalue()
+
+
+# yt-dlp's view of a logged-out Instagram photo post: two photos, thumbnails of unknown size.
+IG_POST = "https://www.instagram.com/p/Cmzn4-LMjt2/"
+IG_RAW = {"_type": "playlist", "id": "Cmzn4-LMjt2", "title": "Post", "entries": [
+    {"id": "a", "thumbnails": [{"url": "https://scontent.cdninstagram.com/a.jpg"}]},
+    {"id": "b", "thumbnails": [{"url": "https://scontent.cdninstagram.com/b.jpg"}]},
+]}
+LOGIN_REDIRECT = Exception("AbortExtraction: HTTP redirect to login page (https://www.instagram.com/accounts/login/)")
+
+
+class PreviewPhotoTest(unittest.TestCase):
+    def test_image_size(self):
+        self.assertEqual(dl.image_size(jpeg(150)), (150, 150))
+        self.assertTrue(dl.is_preview((150, 150)))
+        self.assertFalse(dl.is_preview((1080, 1350)))
+        self.assertTrue(dl.is_preview(dl.image_size(b"not an image")))
+
+    def route(self, side, setting="off"):
+        with mock.patch("gallery.listing", side_effect=LOGIN_REDIRECT), \
+                mock.patch.object(dl, "fetch_image", return_value=jpeg(side)), \
+                mock.patch.object(dl, "login_browser", return_value="" if setting == "off" else "safari"):
+            return dl._gallery_route(IG_POST, setting, IG_RAW)
+
+    def test_previews_show_the_login_message(self):
+        with self.assertRaises(dl.EngineError) as cm:
+            self.route(150)
+        self.assertEqual(str(cm.exception), "This Instagram post needs login — turn on logins in settings")
+        self.assertTrue(dl.is_login_message(str(cm.exception)))
+
+    def test_previews_with_logins_on_say_which_login_was_tried(self):
+        with self.assertRaises(dl.EngineError) as cm:
+            self.route(150, "auto")
+        self.assertIn("Dlr tried your Safari login", str(cm.exception))
+
+    def test_full_size_photos_are_kept(self):
+        route = self.route(1080)
+        self.assertEqual((route["kind"], route["photos"]), ("gallery", 2))
+
+    def test_download_never_saves_previews(self):
+        media = dl._media_from(IG_RAW)
+
+        def fetch(url, dest, headers):
+            with open(dest, "wb") as f:
+                f.write(jpeg(150))
+        with tempfile.TemporaryDirectory() as work, mock.patch.object(dl, "_fetch_file", side_effect=fetch), \
+                mock.patch.object(dl, "login_browser", return_value=""):
+            with self.assertRaises(dl.EngineError) as cm:
+                dl._download_media(media, IG_POST, work, None, lambda *a: None, lambda: None, "off")
+        self.assertIn("needs login", str(cm.exception))
+
+
+class PinterestTest(unittest.TestCase):
+    def test_image_pin_goes_to_gallery_dl(self):
+        url = "https://www.pinterest.com/pin/172896073180205274/"
+        gallery_route = {"kind": "gallery", "photos": 1}
+        no_video = Exception("ERROR: [Pinterest] 172896073180205274: No video formats found!")
+        with mock.patch.object(dl, "_lookup", side_effect=no_video), \
+                mock.patch.object(dl, "_gallery_route", return_value=gallery_route) as gallery_route_call:
+            dl._routes.pop(url, None)
+            self.assertEqual(dl._route(url, "off"), gallery_route)
+            dl._routes.pop(url, None)
+        gallery_route_call.assert_called_once()
 
 
 class FolderTest(unittest.TestCase):

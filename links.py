@@ -23,6 +23,7 @@ SITES = {
     "reddit": ("reddit.com", "redd.it"),
     "facebook": ("facebook.com", "fb.watch", "fb.com"),
     "x": ("x.com", "twitter.com"),
+    "pinterest": ("pinterest.com", "pin.it"),
     "spotify": ("spotify.com", "spotify.link"),
 }
 
@@ -60,6 +61,7 @@ def is_share_link(url: str) -> bool:
         or (site(url) == "reddit" and re.match(r"/r/[^/]+/s/\w+", path))
         or (host == "redd.it" and re.fullmatch(r"/\w+/?", path))
         or host == "spotify.link"
+        or host == "pin.it"
     )
 
 
@@ -126,4 +128,4 @@ def is_photo_link(url: str) -> bool:
     )
 
 
-GALLERY_SITES = ("tiktok", "instagram", "reddit", "x", "facebook")
+GALLERY_SITES = ("tiktok", "instagram", "reddit", "x", "facebook", "pinterest")
