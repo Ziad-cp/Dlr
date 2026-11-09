@@ -43,7 +43,7 @@ import safety  # noqa: E402
 # No logging or debug output: pywebview logs to the console by default.
 logging.getLogger("pywebview").disabled = True
 
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 # PyInstaller unpacks bundled files to _MEIPASS.
 UI_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "ui"
