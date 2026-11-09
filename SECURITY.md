@@ -48,9 +48,12 @@ and limited to 40 million pixels, checked before an image is decoded.
 made: any name that resolves to this computer or the local network is refused right then,
 for all of Dlr's own Python code, yt-dlp and gallery-dl. So a site can't send their requests
 to a local address with a redirect, and a name that points somewhere else the second time
-it's looked up (DNS rebinding) doesn't help either. A proxy set up on the Mac stays usable. Share links (`vm.tiktok.com`,
-`instagram.com/share/…`, `reddit.com/r/…/s/…`, `redd.it`) are followed before downloading, and
-every hop of their redirects is checked the same way (at most 5 hops). Tracking parameters
+it's looked up (DNS rebinding) doesn't help either. A proxy set up on the Mac stays usable.
+(Two kinds of request don't go through Python: see Known limits.)
+
+**Share links.** `vm.tiktok.com`, `instagram.com/share/…`, `reddit.com/r/…/s/…` and `redd.it`
+links are followed before downloading, and every hop of their redirects is checked the same way
+(at most 5 hops). Tracking parameters
 (`igsh`, `utm_…`, TikTok's `_t`/`_d`…) are removed.
 
 **No shell, ever.** Nothing is run through a shell, and no command line is built from text.
@@ -98,7 +101,7 @@ released app prints nothing, and if it ever crashes it shows no traceback.
 
 **Deno in the downloadable app.** yt-dlp needs a JavaScript runtime to solve YouTube's
 challenges. The app includes Deno, fetched by `packaging/get_deno.py` from the official releases
-at `github.com/denoland/deno` for Apple chips, at a pinned version. It must match the SHA-256
+at `github.com/denoland/deno` for Apple chips, at a pinned version (2.9.8). It must match the SHA-256
 pinned in that script (the one published with the release), carry a valid code signature from
 Deno Land Inc.'s Apple Developer ID (team `2H4KBF436B`) and be built for Apple chips; it must
 run and report the pinned version, or the build stops. The app uses only its own Deno.
@@ -106,11 +109,11 @@ yt-dlp runs it without network or file access; its update check and prompts are 
 cache goes to a temporary folder that's deleted when Dlr quits, however it quits (including ⌘Q).
 
 **FFmpeg in the downloadable app.** The app on the Releases page is built by GitHub Actions
-(`.github/workflows/build.yml`) and includes FFmpeg, fetched by `packaging/get_ffmpeg.py`. The
-FFmpeg project itself publishes only source code, and the macOS build ffmpeg.org links to
-(evermeet.cx) is for Intel Macs only, so Dlr uses Martin Riedl's notarized static builds for
-Apple chips, at a pinned FFmpeg release (the newest at the time, with every fix listed on
-ffmpeg.org/security.html). Each file must match the SHA-256 pinned in that script (the one his
+(`.github/workflows/build.yml`) and includes FFmpeg, fetched by `packaging/get_ffmpeg.py`. It is
+**a third-party build, not an official ffmpeg.org binary**: the FFmpeg project publishes only
+source code, and the macOS build ffmpeg.org links to (evermeet.cx) is for Intel Macs only, so Dlr
+uses Martin Riedl's notarized static build for Apple chips, at a pinned FFmpeg release (9.0.2, the
+newest at the time, with every fix listed on ffmpeg.org/security.html). Each file must match the SHA-256 pinned in that script (the one his
 site publishes), carry a valid code signature from his Apple Developer ID (team `KU3N25YGLU`),
 be built for Apple chips, run, report the pinned version and include the encoders Dlr uses, or
 the build stops. The app uses its own FFmpeg before any installed one.
@@ -171,8 +174,17 @@ The app has its own yt-dlp sealed inside. Updates replace it safely:
 2. **Signature:** the release's checksum list (`SHA2-256SUMS`) must carry a valid OpenPGP
    signature (`SHA2-256SUMS.sig`) from yt-dlp's release key. That key is pinned inside Dlr
    (`pgp.py`, fingerprint `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`, as published in
-   yt-dlp's repository) and checked by Dlr's own code, without needing gpg. Anything else (no
-   signature, a damaged one, another key) stops the update before the file is downloaded.
+   yt-dlp's repository) and checked by Dlr's own code, without needing gpg. The check is strict:
+   exactly one version 4 signature packet and nothing else; a binary-document signature only;
+   RSA with SHA-256, SHA-384 or SHA-512 (MD5, SHA-1 and SHA-224 are refused); the signed part
+   must name the pinned key by its full fingerprint, and the unsigned part may hold only that
+   key's ID; one signed creation time, not before the key and not in the future; not past a
+   signature expiry; the pinned key must be at least 2048 bits, carry a valid self-signature,
+   be allowed to sign, not be revoked or expired; no unknown critical or repeated subpackets and
+   no malformed lengths or numbers. Anything else stops the update before the file is
+   downloaded. Each of these cases has a test with a crafted signature (`tests/test_pgp.py`),
+   and the verifier was fuzzed with truncated, bit-flipped and random input: it refused every
+   changed signature and never crashed or hung.
 3. **Checksum:** the file (`yt-dlp`, yt-dlp's platform-independent Python zip) must match the
    signed `SHA2-256SUMS`, and the version written inside it must match the release.
    On any mismatch the download is thrown away and the current version stays. (Tested with a
@@ -215,7 +227,8 @@ releases have no files attached):
 - **`'unsafe-eval'` in the CSP:** see the trade-off above.
 - **yt-dlp updates trust yt-dlp's release key:** a release signed with that key is accepted. If
   yt-dlp ever changes its key, updates stop (the built-in version keeps working) until a new Dlr
-  pins the new key.
+  pins the new key. Dlr works offline from the pinned key, so it can't see a revocation that's
+  published elsewhere: if that key were ever compromised, a Dlr update would be needed.
 - **gallery-dl updates trust PyPI:** gallery-dl publishes no signatures, so its update is
   checked against the SHA-256 PyPI lists for it (over HTTPS), not a signature. It doesn't protect
   against PyPI or the gallery-dl project itself being compromised.

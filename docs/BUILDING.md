@@ -42,8 +42,9 @@ python build.py
 ```
 
 Both scripts download a pinned version from a fixed address and stop on any mismatch:
-`get_ffmpeg.py` takes FFmpeg (`VERSION`) from Martin Riedl's notarized builds for Apple chips,
-`get_deno.py` takes Deno (`VERSION`) from github.com/denoland/deno. Each file must match the
+`get_ffmpeg.py` takes FFmpeg 9.0.2 from Martin Riedl's notarized builds for Apple chips (a
+third-party build: the FFmpeg project publishes no official macOS binaries, and this is not an
+ffmpeg.org binary), and `get_deno.py` takes Deno 2.9.8 from github.com/denoland/deno. Each file must match the
 SHA-256 pinned in the script and carry its maker's Apple Developer ID signature. To move to a
 newer version, change the version and the SHA-256 (the one published next to the file) in the
 script. The app uses only its own FFmpeg and Deno, never ones installed on the Mac.
