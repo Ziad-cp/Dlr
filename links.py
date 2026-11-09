@@ -7,14 +7,12 @@ local network. If a link can't be followed, the original is used (yt-dlp knows m
 """
 import re
 import urllib.error
-import urllib.request
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import safety
 
 _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
        "(KHTML, like Gecko) Version/17.0 Safari/605.1.15")
-MAX_HOPS = 5
 
 SITES = {
     "youtube": ("youtube.com", "youtu.be", "youtube-nocookie.com"),
@@ -65,19 +63,13 @@ def is_share_link(url: str) -> bool:
     )
 
 
-class _CheckedRedirects(urllib.request.HTTPRedirectHandler):
-    max_redirections = MAX_HOPS
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        safety.check_url(newurl)  # every hop: never this computer or the local network
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+_CheckedRedirects = safety.CheckedRedirects  # every hop: never this computer or the local network
+MAX_HOPS = safety.MAX_REDIRECTS
 
 
 def _follow(url: str) -> str:
-    opener = urllib.request.build_opener(_CheckedRedirects)
-    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept-Language": "en"})
     try:
-        with opener.open(req, timeout=15) as r:
+        with safety.open_url(url, {"User-Agent": _UA, "Accept-Language": "en"}, timeout=15) as r:
             return r.geturl()
     except urllib.error.HTTPError as e:
         return e.geturl() or url  # the post itself may refuse us; where it is is enough

@@ -1,7 +1,9 @@
 """Dlr: video and MP3 downloader for the Mac (Apple chips).
 
-A pywebview window shows the HTML UI in ui/. Its JavaScript calls the public
-methods of Api below through window.pywebview.api.
+A pywebview window shows the HTML UI in ui/. Its JavaScript can call only the functions listed
+in Api.PAGE_FUNCTIONS, through window.pywebview.api. They are registered one by one by exact
+name (window.expose); the Api object itself is never handed to pywebview, so the page can't
+reach its private parts (pywebview resolves "a.b.c" names with getattr).
 """
 import sys
 
@@ -16,7 +18,6 @@ import logging  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
 import shutil  # noqa: E402
-import subprocess  # noqa: E402
 import threading  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -49,14 +50,20 @@ UI_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "ui"
 
 
 def reveal(path: str):
-    """Show a file in Finder."""
-    subprocess.Popen(["open", "-R", path])
+    """Show a file in Finder (through macOS itself: no command is run)."""
+    from AppKit import NSWorkspace
+    from Foundation import NSURL
+    from PyObjCTools import AppHelper
+
+    url = NSURL.fileURLWithPath_(os.path.abspath(path))
+    AppHelper.callAfter(NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_, [url])
 
 
 def read_clipboard() -> str:
+    """The clipboard's text (through macOS itself: no command is run)."""
     try:
-        env = dict(os.environ, LANG="en_US.UTF-8")
-        return subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=2, env=env).stdout
+        from AppKit import NSPasteboard, NSPasteboardTypeString
+        return str(NSPasteboard.generalPasteboard().stringForType_(NSPasteboardTypeString) or "")
     except Exception:
         return ""
 
@@ -126,10 +133,17 @@ def _job_id(value) -> int:
 
 
 class Api:
-    """The only functions the page can call (names starting with _ are not exposed).
+    """The only functions the page can call are the ones named in PAGE_FUNCTIONS.
 
-    Everything coming from the page is checked here: types, lengths and allowed values.
+    Everything coming from the page is checked here: types, lengths and allowed values. None of
+    them runs a command or lets the page choose where a file goes: downloads go only into the
+    download folder the user picked in the system's own folder window; the only other files
+    written are Dlr's settings and its verified engine updates, at fixed places in
+    ~/Library/Application Support/Dlr/.
     """
+
+    PAGE_FUNCTIONS = ("info", "fetch", "set_browser", "add", "cancel", "jobs", "reveal", "clipboard",
+                      "choose_folder", "update_ytdlp", "update_status")
 
     def __init__(self):
         self._cfg = config.load()
@@ -145,6 +159,9 @@ class Api:
     def _save(self):
         with self._lock:
             config.save(self._cfg)
+
+    def _page_functions(self) -> list:
+        return [getattr(self, name) for name in self.PAGE_FUNCTIONS]
 
     # ---- called from JavaScript ----
 
@@ -296,12 +313,13 @@ def create_window(api: Api):
         "Dlr",
         # Load straight from disk: no local web server, so the app opens no network port.
         (UI_DIR / "index.html").as_uri(),
-        js_api=api,
+        # No js_api object: only the functions exposed below, by exact name, can be called.
         width=900,
         height=680,
         min_size=(480, 560),
         background_color="#0a0a0d",
     )
+    window.expose(*api._page_functions())
     api._window = window
     return window
 
@@ -326,7 +344,7 @@ def download_cli(args: list[str]) -> int:
             raise dl.DownloaderError(dl.FFMPEG_MISSING)
         result = dl.download(args[0], quality, folder, ffmpeg_dir, browser_setting=browser)
     except dl.DownloaderError as e:
-        print(f"ERROR: {e}")
+        print(f"ERROR: {safety.scrub(e)}")
         return 1
     except Exception as e:  # e.g. yt-dlp's own errors: a plain message, never a traceback
         print(f"ERROR: {dl.friendly_error(e)}")
@@ -335,7 +353,22 @@ def download_cli(args: list[str]) -> int:
     return 0
 
 
+def _quiet_crashes():
+    """The released app never prints a traceback (it would show file paths), whatever fails."""
+    def hide(*_):
+        try:
+            sys.__stderr__.write("Dlr stopped because of an unexpected problem.\n")
+        except Exception:
+            pass
+    sys.excepthook = hide
+    threading.excepthook = lambda args: None
+
+
 def main():
+    # Every connection from this process goes only to public internet addresses.
+    safety.install_network_guard()
+    if getattr(sys, "frozen", False):
+        _quiet_crashes()
     if len(sys.argv) > 1 and sys.argv[1] == "--download":
         sys.exit(download_cli(sys.argv[2:]))
     if len(sys.argv) > 1 and sys.argv[1] == "--job":

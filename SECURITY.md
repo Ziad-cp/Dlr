@@ -22,22 +22,40 @@ The window loads its page straight from disk. (Checked with `lsof` while idle an
 
 **The window's bridge to Python.** The page can call only the functions it needs: `info`,
 `fetch`, `add`, `cancel`, `jobs`, `reveal`, `clipboard`, `choose_folder`, `set_browser`,
-`update_ytdlp`, `update_status`.
+`update_ytdlp`, `update_status`. They're registered one by one, by exact name
+(`window.expose`); no Python object is handed to the page. (pywebview looks up a name like
+`a.b.c` with `getattr`, including names starting with `_`, so handing it an object would let
+the page reach that object's private parts.)
 Every argument is checked for type, length and allowed values. Errors come back as plain
 messages, never Python tracebacks. The clipboard function returns only a valid link found
-there, never the rest of the clipboard.
+there, never the rest of the clipboard. None of these functions runs a command (Finder and
+the clipboard are used through macOS itself) or lets the page choose where a file goes:
+downloads go only into the folder picked in the system's own folder window, and the only
+other files written are Dlr's settings and its verified engine updates, at fixed places in
+`~/Library/Application Support/Dlr/`.
 
-**Links.** Only `http`/`https`, at most 2,048 characters, no control or invisible characters
+**Links.** Only `http`/`https`, never anything starting with `-` (which a command-line tool
+could read as an option), at most 2,048 characters, no control or invisible characters
 (including bidi tricks), no `user:password@` logins, and never this computer or the local
 network (`localhost`, `127.x`, `10.x`, `192.168.x`, `169.254.x`, `*.local`, IPv6 local
 ranges). Names are resolved and checked too. The same checks apply to thumbnails, cover
-art and photos, including after redirects, with size caps. Share links (`vm.tiktok.com`,
+art and photos Dlr fetches itself: every redirect hop is checked before it's followed (at
+most 5), cookies and logins are never sent along, and they're size-capped (8 MB for
+thumbnails and covers, 200 MB for a photo, refused up front when the site announces more)
+and limited to 40 million pixels, checked before an image is decoded.
+
+**Every connection, not just the link.** Dlr also checks addresses when a connection is
+made: any name that resolves to this computer or the local network is refused right then,
+for all of Dlr's own Python code, yt-dlp and gallery-dl. So a site can't send their requests
+to a local address with a redirect, and a name that points somewhere else the second time
+it's looked up (DNS rebinding) doesn't help either. A proxy set up on the Mac stays usable. Share links (`vm.tiktok.com`,
 `instagram.com/share/…`, `reddit.com/r/…/s/…`, `redd.it`) are followed before downloading, and
 every hop of their redirects is checked the same way (at most 5 hops). Tracking parameters
 (`igsh`, `utm_…`, TikTok's `_t`/`_d`…) are removed.
 
-**No shell, ever.** Nothing is run through a shell. yt-dlp is used as a library; FFmpeg and
-ffprobe get argument lists with absolute paths. FFmpeg may read only local files
+**No shell, ever.** Nothing is run through a shell, and no command line is built from text.
+yt-dlp is used as a library (so a link is never parsed as an option); FFmpeg and ffprobe get
+argument lists with absolute paths. FFmpeg may read only local files
 (`-protocol_whitelist file`) and only real audio/video containers, so a "video" that's really
 a playlist can't make it open other files or web addresses.
 
@@ -51,7 +69,9 @@ with a just-updated yt-dlp: the request goes in as JSON on stdin, never on a com
 
 **Files.** Downloads are written only inside the chosen folder:
 
-- Names are cleaned: no folders, no `..`, no hidden files, length limited in bytes.
+- Names come from titles and other metadata, so they're cleaned: no folders, no `..`, no
+  hidden files, no control or bidi characters, length limited in bytes; extensions may only
+  be letters and digits.
 - An existing file is **never overwritten**. A name is claimed with an exclusive create, then
   the finished file replaces only that claim; same name and extension gets " (2)".
 - Work happens in a private temporary folder that's deleted after every download, error or cancel.
@@ -67,22 +87,39 @@ internet text.
 
 **Code that runs.** yt-dlp plugins (Python code it would otherwise load from folders in your
 home) are disabled, also inside the gallery-dl process. Python dependencies come only from PyPI,
-are pinned to exact versions in `requirements.txt`, and are checked with `pip-audit`.
+are pinned to exact versions in `requirements.txt` together with the SHA-256 of every file pip
+may use, and are installed with `--require-hashes` (the build tool for the one package without
+a ready-made wheel is pinned the same way, in `requirements-build.txt`, so nothing unpinned is
+fetched while building). They're checked with `pip-audit`.
+
+**Errors and crashes.** Messages shown in the window or printed by the command line never
+contain file paths, your user name or cookies: they're removed before anything is shown. The
+released app prints nothing, and if it ever crashes it shows no traceback.
 
 **Deno in the downloadable app.** yt-dlp needs a JavaScript runtime to solve YouTube's
 challenges. The app includes Deno, fetched by `packaging/get_deno.py` from the official releases
-at `github.com/denoland/deno` for Apple chips. It must match the SHA-256 published with that
-release, carry a valid Apple-issued code signature and be built for Apple chips; it must run and
-be Deno 2 or newer, or the build stops. The app uses only its own Deno.
+at `github.com/denoland/deno` for Apple chips, at a pinned version. It must match the SHA-256
+pinned in that script (the one published with the release), carry a valid code signature from
+Deno Land Inc.'s Apple Developer ID (team `2H4KBF436B`) and be built for Apple chips; it must
+run and report the pinned version, or the build stops. The app uses only its own Deno.
 yt-dlp runs it without network or file access; its update check and prompts are off, and its
 cache goes to a temporary folder that's deleted when Dlr quits, however it quits (including ⌘Q).
 
 **FFmpeg in the downloadable app.** The app on the Releases page is built by GitHub Actions
-(`.github/workflows/build.yml`) and includes FFmpeg, fetched by `packaging/get_ffmpeg.py` from
-the Mac builds that ffmpeg.org links to (Martin Riedl). They must carry a valid Apple-issued
-code signature, be built for Apple chips, run and include the encoders Dlr uses, or the build
-stops. The app uses its own FFmpeg before any installed one. Each release also publishes the
-.dmg's SHA-256 in `Dlr-mac-apple-silicon.dmg.sha256`.
+(`.github/workflows/build.yml`) and includes FFmpeg, fetched by `packaging/get_ffmpeg.py`. The
+FFmpeg project itself publishes only source code, and the macOS build ffmpeg.org links to
+(evermeet.cx) is for Intel Macs only, so Dlr uses Martin Riedl's notarized static builds for
+Apple chips, at a pinned FFmpeg release (the newest at the time, with every fix listed on
+ffmpeg.org/security.html). Each file must match the SHA-256 pinned in that script (the one his
+site publishes), carry a valid code signature from his Apple Developer ID (team `KU3N25YGLU`),
+be built for Apple chips, run, report the pinned version and include the encoders Dlr uses, or
+the build stops. The app uses its own FFmpeg before any installed one.
+
+**Releases.** Every release lists the .dmg's SHA-256 in its notes and in
+`Dlr-mac-apple-silicon.dmg.sha256`, and the README gives the current one. The workflow pins
+every GitHub Action to a full commit SHA, runs with read-only permissions (only the release job
+may write, to publish), doesn't keep the token on disk after checking out, and uses no secrets
+besides GitHub's own short-lived token.
 
 ## Privacy
 
@@ -97,7 +134,9 @@ stops. The app uses its own FFmpeg before any installed one. Each release also p
   **off by default** (**Never**): until you choose a browser, Dlr never reads any cookies and
   tells you when something needs a login. yt-dlp reads the cookies straight from the browser
   into memory for that one download; Dlr never copies, saves or logs them, and they're sent only
-  to the sites they belong to. macOS asks first: Keychain access for Chrome-based browsers, Full
+  to the sites they belong to. For photo posts, gallery-dl reads only that site's cookies (for
+  example only `.instagram.com`). Photos, thumbnails and covers Dlr fetches itself never get
+  cookies, and redirects never carry them along. macOS asks first: Keychain access for Chrome-based browsers, Full
   Disk Access for Safari.
 - **Never read:** contacts or photos.
 - **Read when you switch to the window:** the clipboard, and only to find a link to fill in.
@@ -114,8 +153,8 @@ stops. The app uses its own FFmpeg before any installed one. Each release also p
   3. GitHub, for yt-dlp updates: at most once a day at launch, after a failed download (at most
      once an hour), and when you press **Update**: `github.com/yt-dlp/yt-dlp/releases/latest`,
      then the release files from `github.com` / `*.githubusercontent.com` if there's a new one.
-     (Running from source, updates use `pypi.org` and `files.pythonhosted.org`, or Homebrew's
-     servers if yt-dlp came from `brew`.)
+     (Running from source, Dlr never updates anything itself: the versions in
+     `requirements.txt` are used.)
   4. PyPI, for gallery-dl updates, at the same times: `pypi.org/pypi/gallery-dl/json`, then the
      release file from `files.pythonhosted.org` if there's a new one.
 
@@ -129,16 +168,23 @@ The app has its own yt-dlp sealed inside. Updates replace it safely:
 1. **Source:** only the official releases at `github.com/yt-dlp/yt-dlp`, over HTTPS. Redirects
    are followed only to GitHub's download servers (`*.githubusercontent.com`). Anything else
    stops the update.
-2. **Checksum:** the file (`yt-dlp`, yt-dlp's platform-independent Python zip) must match the
-   release's official `SHA2-256SUMS`, and the version written inside it must match the release.
+2. **Signature:** the release's checksum list (`SHA2-256SUMS`) must carry a valid OpenPGP
+   signature (`SHA2-256SUMS.sig`) from yt-dlp's release key. That key is pinned inside Dlr
+   (`pgp.py`, fingerprint `AC0C BBE6 848D 6A87 3464 AF4E 57CF 6593 3B5A 7581`, as published in
+   yt-dlp's repository) and checked by Dlr's own code, without needing gpg. Anything else (no
+   signature, a damaged one, another key) stops the update before the file is downloaded.
+3. **Checksum:** the file (`yt-dlp`, yt-dlp's platform-independent Python zip) must match the
+   signed `SHA2-256SUMS`, and the version written inside it must match the release.
    On any mismatch the download is thrown away and the current version stays. (Tested with a
-   1-byte change and with a fake carrying a matching checksum but the wrong version.)
-3. **Storage:** it's saved atomically to `~/Library/Application Support/Dlr/yt-dlp/` with a small
-   manifest (version and SHA-256).
-4. **Use:** at the next launch, only if it's newer than the built-in yt-dlp, still matches its
-   recorded checksum, and loads cleanly (plugins off). Otherwise the built-in version is used and
-   the bad update is deleted. (Tested with a damaged file and with one that fails to load.)
-5. **When:** on its own at most once a day at launch, and after a failed download (at most once
+   1-byte change, with a changed or missing signature, with another key, and with a fake
+   carrying a matching checksum but the wrong version.)
+4. **Storage:** it's saved atomically to `~/Library/Application Support/Dlr/yt-dlp/` together
+   with the signed checksum list, its signature and a small manifest.
+5. **Use:** at the next launch, only if it's newer than the built-in yt-dlp, the signature is
+   still valid, the file still matches the signed checksum, and it loads cleanly (plugins off).
+   Otherwise the built-in version is used and the bad update is deleted. (Tested with a damaged
+   file, a missing signature and one that fails to load.)
+6. **When:** on its own at most once a day at launch, and after a failed download (at most once
    an hour), since a failure often means the site changed; or when you press **Update**. A dot on
    the Settings icon shows a new version waiting for a restart.
 
@@ -159,23 +205,29 @@ releases have no files attached):
 
 ## Known limits
 
-- **Redirects inside yt-dlp and gallery-dl:** a public site could still redirect their own
-  requests to a local address (or use DNS rebinding). The checks cover the link you paste, share
-  links, thumbnails, covers and photos Dlr fetches itself, not the engines' internal redirects.
+- **Connections Python doesn't make:** the connection check covers everything Dlr, yt-dlp and
+  gallery-dl do through Python. Two kinds of request don't go through it: TikTok's, which yt-dlp
+  makes with curl_cffi (to look like a browser), and streams yt-dlp hands to FFmpeg to download
+  itself (rare; live streams, for example). A TikTok page or such a stream could still point
+  those at a local address.
 - **Impersonation:** for TikTok, yt-dlp's `--impersonate` (curl_cffi) makes its requests look
   like a normal browser's, because TikTok refuses plain ones.
 - **`'unsafe-eval'` in the CSP:** see the trade-off above.
-- **Updates trust GitHub and PyPI:** the checksum comes from the same official release page as the file,
-  so it proves the download is intact and is what yt-dlp published there. It doesn't protect
-  against GitHub or the yt-dlp project itself being compromised; the release's GPG signature
-  isn't checked.
+- **yt-dlp updates trust yt-dlp's release key:** a release signed with that key is accepted. If
+  yt-dlp ever changes its key, updates stop (the built-in version keeps working) until a new Dlr
+  pins the new key.
+- **gallery-dl updates trust PyPI:** gallery-dl publishes no signatures, so its update is
+  checked against the SHA-256 PyPI lists for it (over HTTPS), not a signature. It doesn't protect
+  against PyPI or the gallery-dl project itself being compromised.
 - **Updated code lives in your account:** the update is code the app runs, stored in your
-  Library folder. Anyone who can already write there could change it; its checksum is
-  re-checked at every launch, which catches damage but not a deliberate change of both files.
+  Library folder. The yt-dlp update's signature is re-checked at every launch, so a changed file
+  isn't used; the gallery-dl update's checksum is re-checked, which catches damage but not a
+  deliberate change of both files by someone who can already write there.
 - **Ad-hoc signature:** the Mac app is signed "ad hoc", not notarized by Apple, so macOS asks
   you to confirm the first launch (System Settings › Privacy & Security › Open Anyway).
-- **Bundled FFmpeg and Deno trust their builders:** the checks prove the downloads are intact
-  and signed by an Apple-registered developer, not that the builder is trustworthy.
+- **Bundled FFmpeg and Deno trust their builders:** the checks prove the downloads are exactly
+  the pinned files, signed by Martin Riedl's and Deno Land's Apple Developer IDs, not that the
+  builders are trustworthy.
 - **Clipboard:** read when the window comes to the front (only a link copied since Dlr opened
   is used).
 
@@ -188,5 +240,9 @@ pip install pip-audit
 ```
 
 ```bash
-pip-audit -r requirements.txt
+pip-audit --require-hashes --disable-pip -r requirements.txt -r requirements-build.txt
 ```
+
+For FFmpeg, compare the version pinned in `packaging/get_ffmpeg.py` with the fixes listed on
+[ffmpeg.org/security.html](https://ffmpeg.org/security.html), and move to a newer release when
+one fixes something.

@@ -19,7 +19,6 @@ import tempfile
 import threading
 import time
 import urllib.parse
-import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -392,8 +391,10 @@ RATE_LIMITED = "This site is limiting downloads right now. Wait a few minutes an
 NO_FORMAT = "No version of this video can be saved this way. Try the other button, or another link."
 FORBIDDEN = "The site refused the download. Try again in a few minutes."
 FFMPEG_FAILED = f"Dlr's FFmpeg is missing or failed. {REINSTALL}"
+LOCAL_NETWORK = "Links to this computer or your local network aren't allowed."
 
 _ERRORS = [
+    (r"local network aren't allowed", LOCAL_NETWORK),
     (r"\bdrm\b|copy[- ]protect", DRM_ERROR),
     # Reading the browser's login failed (macOS privacy settings or Keychain).
     (r"full disk access|binarycookies|cookies?.*operation not permitted|operation not permitted.*cookies"
@@ -468,7 +469,7 @@ def friendly_error(exc: Exception) -> str:
             return text
     if not msg or len(msg) > 200 or "Traceback" in msg:
         return "Something went wrong. Try again in a few minutes."
-    return msg
+    return safety.scrub(msg)
 
 
 class _QuietLogger:
@@ -642,12 +643,24 @@ def fmt_speed(bps) -> str:
 
 
 def fetch_image(url) -> bytes:
-    """Download a small image from a public web address (never a local file or network)."""
-    url = safety.check_url(url)
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        safety.check_url(r.geturl())  # also after redirects
+    """Download a small image from a public web address (never a local file or network):
+    every redirect hop is checked, and it may be at most safety.MAX_DOWNLOAD_BYTES."""
+    with safety.open_url(url, {"User-Agent": "Mozilla/5.0"}, timeout=10) as r:
         return safety.read_limited(r)
+
+
+def _open_image(data):
+    """A Pillow image, refusing ones with more than safety.MAX_IMAGE_PIXELS pixels before
+    anything is decoded ("decompression bombs")."""
+    from PIL import Image
+
+    Image.MAX_IMAGE_PIXELS = safety.MAX_IMAGE_PIXELS
+    img = Image.open(io.BytesIO(data) if isinstance(data, bytes) else data)
+    width, height = img.size
+    if width <= 0 or height <= 0 or width * height > safety.MAX_IMAGE_PIXELS:
+        img.close()
+        raise safety.UnsafeInput("The image is too large.")
+    return img
 
 
 def thumbnail_data_url(url: str, size: int = 480) -> str:
@@ -657,10 +670,8 @@ def thumbnail_data_url(url: str, size: int = 480) -> str:
     """
     try:
         data = fetch_image(url)
-        from PIL import Image
-
-        Image.MAX_IMAGE_PIXELS = 40_000_000  # refuse "decompression bomb" images
-        img = Image.open(io.BytesIO(data)).convert("RGB")
+        with _open_image(data) as original:
+            img = original.convert("RGB")
         img.thumbnail((size, size))
         buf = io.BytesIO()
         img.save(buf, "JPEG", quality=82)
@@ -759,8 +770,7 @@ MIN_PHOTO_SIDE = 400
 def image_size(image) -> tuple[int, int]:
     """(width, height) of an image file or its bytes, or (0, 0) if it can't be read."""
     try:
-        from PIL import Image
-        with Image.open(io.BytesIO(image) if isinstance(image, bytes) else image) as img:
+        with _open_image(image) as img:
             return img.size
     except Exception:
         return (0, 0)
@@ -1014,6 +1024,14 @@ def valid_quality(quality: str) -> bool:
     return quality in ("best", "mp3") or (str(quality).isdigit() and 100 <= int(quality) <= 4320)
 
 
+def _youtube_link(url: str) -> str:
+    """A Spotify song's match, as found on YouTube: it must be a checked YouTube link."""
+    url = _checked(str(url or ""))
+    if links.site(url) != "youtube":
+        raise DownloaderError("Couldn't find this song on YouTube Music, so it can't be downloaded.")
+    return url
+
+
 def _fetch_spotify(url: str, browser_setting: str) -> dict:
     """Spotify song: Spotify's info, with the matching YouTube upload's qualities.
     Album or playlist: its info and number of songs (each is matched when downloading)."""
@@ -1023,6 +1041,7 @@ def _fetch_spotify(url: str, browser_setting: str) -> dict:
             c = spotify.collection(url)
         else:
             track, youtube_url = spotify.resolve(url)
+            youtube_url = _youtube_link(youtube_url)
     except spotify.SpotifyError as e:
         raise DownloaderError(str(e)) from None
     if kind != "track":
@@ -1131,6 +1150,7 @@ def download(url: str, quality: str, folder: str, ffmpeg_dir, *, expected_label:
             if kind != "track":
                 return _download_spotify_list(url, quality, folder, ffmpeg_dir, title=title, **calls)
             track, source = spotify.resolve(url)
+            source = _youtube_link(source)
         except spotify.SpotifyError as e:
             raise DownloaderError(str(e)) from None
         title(track["name"])
@@ -1287,8 +1307,8 @@ def _download_song(source: str, track: dict, quality: str, folder: str, ffmpeg_d
         raise
     except Exception:
         try:
-            other = spotify.find_on_youtube(track, music=False)
-        except spotify.SpotifyError:
+            other = _youtube_link(spotify.find_on_youtube(track, music=False))
+        except (spotify.SpotifyError, DownloaderError):
             other = source
         if other == source:
             raise
@@ -1298,14 +1318,17 @@ def _download_song(source: str, track: dict, quality: str, folder: str, ffmpeg_d
 
 # ---- photo posts, carousels and slideshows ----
 
-def _fetch_file(url: str, dest: str, headers: dict, limit: int = 200 * 1024 * 1024):
-    """Save one photo from a public web address (checked, also after redirects, size-capped)."""
-    url = safety.check_url(url)
-    safe_headers = {k: v for k, v in (headers or {}).items() if k.lower() in ("referer", "user-agent")}
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", **safe_headers})
-    opener = urllib.request.build_opener(links._CheckedRedirects)
-    with opener.open(req, timeout=60) as r, open(dest, "wb") as f:
-        safety.check_url(r.geturl())
+MAX_PHOTO_BYTES = 200 * 1024 * 1024
+
+
+def _fetch_file(url: str, dest: str, headers: dict, limit: int = MAX_PHOTO_BYTES):
+    """Save one photo from a public web address (checked, also after redirects, size-capped).
+    Only the Referer and User-Agent the site asked for go along: never cookies."""
+    safe_headers = {k: str(v) for k, v in (headers or {}).items()
+                    if k.lower() in ("referer", "user-agent") and "\n" not in str(v) and "\r" not in str(v)}
+    with safety.open_url(url, {"User-Agent": "Mozilla/5.0", **safe_headers}, timeout=60) as r, \
+            open(dest, "wb") as f:
+        safety.check_length(r, limit)
         total = 0
         for chunk in iter(lambda: r.read(1 << 20), b""):
             total += len(chunk)
@@ -1497,7 +1520,7 @@ def _download_spotify_list(url: str, quality: str, folder: str, ffmpeg_dir, *, t
                 progress({"status": "downloading", "downloaded_bytes": (i + part) * 1000,
                           "total_bytes": n * 1000, "speed": d.get("speed")})
             try:
-                source = spotify.match(track)
+                source = _youtube_link(spotify.match(track))
                 number = f"{track['number']:02} " if track.get("number") else ""
                 result = _download_song(
                     source, track, "mp3", work, ffmpeg_dir,
@@ -1663,7 +1686,7 @@ class Downloader:
                 job.speed = job.eta = ""
             except DownloaderError as e:
                 job.status = "error"
-                job.error = str(e)
+                job.error = safety.scrub(e)
             except Exception as e:
                 job.status = "error"
                 job.error = friendly_error(e)
@@ -1732,7 +1755,7 @@ class Downloader:
 
 # Failures a newer yt-dlp or gallery-dl can't fix.
 _NO_UPDATE = {NETWORK_ERROR, DRM_ERROR, LOGIN_ERROR, STORIES_LOGIN, RATE_LIMITED, NO_SOUND, SPOTIFY_LIST_MP3,
-              FFMPEG_MISSING, PLAYLIST_ERROR}
+              FFMPEG_MISSING, PLAYLIST_ERROR, LOCAL_NETWORK}
 
 
 # ---- a download in a fresh copy of Dlr (after an update) ----
@@ -1790,7 +1813,7 @@ def run_job_in_child(request: dict, *, progress, status, title, cancelled) -> di
         if proc.poll() is None:
             proc.kill()
     if not outcome or outcome["event"] == "error":
-        raise DownloaderError(str((outcome or {}).get("message") or "Something went wrong.")[:500])
+        raise DownloaderError(safety.scrub(str((outcome or {}).get("message") or "Something went wrong."))[:500])
     if outcome["event"] == "cancelled":
         raise JobCancelled()
     result = outcome.get("result") or {}
@@ -1838,7 +1861,7 @@ def job_child(stdin=None, stdout=None) -> int:
         emit(event="cancelled")
         return 1
     except DownloaderError as e:
-        emit(event="error", message=str(e))
+        emit(event="error", message=safety.scrub(e))
         return 1
     except Exception as e:
         emit(event="error", message=friendly_error(e))
@@ -1865,30 +1888,13 @@ def install_method() -> str:
 
 
 def update_ytdlp() -> tuple[bool, str]:
-    """Update yt-dlp the way it was installed. Returns (changed, message).
-    A new version is used from the next launch. Commands are argument lists, never a shell."""
-    method = install_method()
-    if method == "app":
+    """Update yt-dlp in the packaged app (a signature-checked download, see updater.py).
+    Returns (changed, message); a new version is used from the next launch. Running from
+    source, yt-dlp is the version pinned (with its hash) in requirements.txt: nothing is
+    installed and no command is run."""
+    if install_method() == "app":
         return updater.install_latest()
-    before = updater.current_version()
-    if method == "brew":
-        brew = next(filter(None, (shutil.which("brew", path=d) for d in [None, *_FFMPEG_DIRS])), "")
-        if not brew:
-            return False, f"Couldn't find Homebrew. Keeping {before}."
-        r = subprocess.run([brew, "upgrade", "yt-dlp"], capture_output=True, text=True, timeout=600)
-        check = [os.path.join(os.path.dirname(brew), "yt-dlp"), "--version"]
-    else:
-        r = subprocess.run([sys.executable, "-m", "pip", "install", "-U", "--no-cache-dir",
-                            "--disable-pip-version-check", "yt-dlp"],
-                           capture_output=True, text=True, timeout=600)
-        check = [sys.executable, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"]
-    if r.returncode != 0:
-        return False, f"Couldn't update right now. Keeping {before}."
-    after = subprocess.run(check, capture_output=True, text=True, timeout=60).stdout.strip() or before
-    if not updater.newer(after, before):
-        return False, f"Up to date ({before})"
-    updater.active["pending"] = after
-    return True, f"Updated to {after}. Restart Dlr to use it."
+    return False, f"Running from source: yt-dlp {updater.current_version()} comes from requirements.txt."
 
 
 def update_gallery_dl() -> tuple[bool, str]:

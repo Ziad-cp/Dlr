@@ -23,12 +23,14 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(args[-2:], ["--", url])
         self.assertIn("--gallery-dl", args)
         self.assertIn("--config-ignore", args)  # never the user's own gallery-dl settings
-        self.assertEqual(args[args.index("--cookies-from-browser") + 1], "safari")
+        # Only TikTok's own cookies are read from the browser.
+        self.assertEqual(args[args.index("--cookies-from-browser") + 1], "safari/.tiktok.com")
         self.assertTrue(all(isinstance(a, str) for a in args))
 
-    def test_a_link_that_looks_like_an_option_stays_a_link(self):
-        args = gallery.command("--exec=evil", self.work, None)
-        self.assertEqual(args[-2:], ["--", "--exec=evil"])
+    def test_something_that_looks_like_an_option_is_refused(self):
+        for text in ("--exec=evil", "-o", "x"):
+            with self.assertRaises(ValueError):
+                gallery.command(text, self.work, None)
 
     def test_private_settings(self):
         args = gallery.command("https://x.com/a/status/1", self.work, "/ff")

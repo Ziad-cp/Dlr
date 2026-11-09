@@ -22,13 +22,16 @@ With Python 3.12 from [python.org](https://www.python.org/downloads/) or elsewhe
 
 ```bash
 git clone https://github.com/Ziad-cp/Dlr.git && cd Dlr
-python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3.12 -m venv .venv && .venv/bin/pip install --require-hashes -r requirements-build.txt
+.venv/bin/pip install --require-hashes --no-build-isolation -r requirements.txt
 .venv/bin/python packaging/get_ffmpeg.py && .venv/bin/python packaging/get_deno.py
 .venv/bin/python app.py
 ```
 
 Running from source, Dlr uses `packaging/ffmpeg/` and `packaging/deno/` (or an FFmpeg and Deno
-it finds on the Mac); yt-dlp, gallery-dl and curl_cffi come from `requirements.txt`.
+it finds on the Mac); yt-dlp, gallery-dl and curl_cffi come from `requirements.txt`, where every
+package is pinned with the SHA-256 of its files. Running from source, Dlr never updates yt-dlp
+or gallery-dl by itself: change the version and hashes in `requirements.txt` instead.
 
 ## Build the app
 
@@ -38,9 +41,12 @@ python packaging/get_deno.py     # bundle a verified Deno (YouTube's challenges)
 python build.py
 ```
 
-`get_deno.py` takes the newest release for Apple chips from github.com/denoland/deno, checks it
-against the SHA-256 published with it and its Apple code signature, and stops on any mismatch.
-The app uses only its own Deno, never one installed on the Mac.
+Both scripts download a pinned version from a fixed address and stop on any mismatch:
+`get_ffmpeg.py` takes FFmpeg (`VERSION`) from Martin Riedl's notarized builds for Apple chips,
+`get_deno.py` takes Deno (`VERSION`) from github.com/denoland/deno. Each file must match the
+SHA-256 pinned in the script and carry its maker's Apple Developer ID signature. To move to a
+newer version, change the version and the SHA-256 (the one published next to the file) in the
+script. The app uses only its own FFmpeg and Deno, never ones installed on the Mac.
 
 The output is `dist/Dlr.app` and `dist/Dlr-<version>.dmg` (the workflow renames it
 `Dlr-mac-apple-silicon.dmg`).
@@ -83,7 +89,9 @@ To publish a release:
 2. On GitHub, open **Releases › Draft a new release**, create the tag `v<version>` and
    publish. Alternatively, push the tag: `git tag v1.1.0 && git push origin v1.1.0`.
 3. About 10 minutes later, `Dlr-mac-apple-silicon.dmg` and its checksum
-   `Dlr-mac-apple-silicon.dmg.sha256` are attached to the release.
+   `Dlr-mac-apple-silicon.dmg.sha256` are attached to the release, and the SHA-256 is in the
+   release notes.
+4. Put that SHA-256 in the README's **Check the download** section.
 
 The file name is the same for every version, so the README's link
 (`https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg`) always
@@ -111,10 +119,12 @@ Dlr also starts itself with `--gallery-dl` (to run gallery-dl in its own process
 | `downloader.py` | Download logic: which engine, formats, checks, retries, Apple-compatible MP4 |
 | `gallery.py` | Photo posts, carousels and slideshows with gallery-dl (in its own process) |
 | `links.py` | Which site a link is from, share links, tracking parameters |
-| `safety.py` | Link and file rules |
+| `safety.py` | Link, network, file and error-message rules |
+| `pgp.py` | Checks yt-dlp's release signature against its pinned key |
 | `spotify.py` | Spotify songs, albums and playlists, and the matching YouTube Music songs |
 | `config.py` | The settings file |
 | `updater.py` | Verified yt-dlp and gallery-dl updates for the packaged app, with fallback |
+| `requirements.txt`, `requirements-build.txt` | Python packages, pinned with hashes |
 | `build.py` | Builds the app and its disk image |
 | `packaging/` | Icons, and `get_ffmpeg.py` and `get_deno.py` (verified tools for the app) |
 | `tests/` | Unit tests, and `live_links.py` for real downloads on a Mac |

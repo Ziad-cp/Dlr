@@ -27,6 +27,16 @@ The link always gives the newest version. All versions, each with its SHA-256 ch
 on the [releases page](https://github.com/Ziad-cp/Dlr/releases). Everything is included: no
 extra software to install. The .dmg is the only way to install Dlr.
 
+### Check the download
+
+To make sure the .dmg is exactly the one GitHub built, run this in Terminal and compare the
+result with the SHA-256 in that version's release notes (also in
+[Dlr-mac-apple-silicon.dmg.sha256](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg.sha256)):
+
+```bash
+shasum -a 256 ~/Downloads/Dlr-mac-apple-silicon.dmg
+```
+
 ### First launch
 
 Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it once:
@@ -86,17 +96,23 @@ Sites change often, so Dlr keeps its download engines up to date: it updates
 on its own at most once a day, and again after a failed download (at most once an hour; if a
 newer version arrived, it tries that download once more). A dot on the Settings icon means a new yt-dlp is waiting for a restart.
 **Settings › Update** does it at any time. Updates come only from
-the official releases (yt-dlp from GitHub, gallery-dl from PyPI) and are verified against
-their published checksums before use.
+the official releases (yt-dlp from GitHub, gallery-dl from PyPI) and are verified before use:
+yt-dlp's against its release signature, with yt-dlp's key built into Dlr, and gallery-dl's
+against the checksum PyPI publishes.
 
 ## Security and privacy
 
 Dlr treats everything from the internet as untrusted:
 
 - No open network ports; the app runs no web server.
-- Links can never reach your computer or local network (SSRF protection).
-- Nothing runs through a shell; downloaded files can't overwrite your files.
-- Updates and the bundled FFmpeg and Deno are verified against official checksums or signatures.
+- Links, redirects and every connection can never reach your computer or local network.
+- Nothing runs through a shell; downloaded files can't overwrite your files or land outside
+  the download folder, whatever a video's title says.
+- yt-dlp updates are signature-checked; the bundled FFmpeg and Deno are pinned versions checked
+  against pinned checksums and their makers' Apple signatures; Python packages are pinned with
+  hashes.
+- Titles and other text from sites can't run code in the window; errors never show file paths
+  or cookies.
 
 It stores only your download folder and **Logins from** settings. Details, limits and the full list of network
 connections: [SECURITY.md](SECURITY.md).

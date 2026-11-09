@@ -7,11 +7,13 @@ straight away, and gallery-dl's global settings never mix with the app's.
 The child gets an argument list (never a shell), "--" before the link, no user config
 files (--config-ignore), and a private config file in the download's temp folder: no cache
 on disk (":memory:"), no archive, no post-processors, nothing written outside that folder.
-What it prints is read in memory only.
+What it prints is read in memory only. With a browser login, gallery-dl reads only that site's
+cookies from the browser (BROWSER/.site.com), keeps them in memory, and never saves them.
 """
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -42,6 +44,8 @@ def child_main(argv: list[str]) -> int:
     for name, fd in (("stdout", 1), ("stderr", 2)):
         if getattr(sys, name) is None:
             setattr(sys, name, open(fd, "w", encoding="utf-8", closefd=False))
+    import safety
+    safety.install_network_guard()  # never this computer or the local network, redirects included
     import updater
     updater.activate()  # gallery-dl hands some videos to yt-dlp
     updater.activate_gallery_dl()
@@ -77,14 +81,28 @@ def _config(work: str, ffmpeg_dir) -> dict:
     }
 
 
+def cookie_domain(url: str) -> str:
+    """The site whose browser cookies gallery-dl may read for a link, e.g. ".instagram.com"."""
+    import links
+    site = links.site(url)
+    domain = links.SITES[site][0] if site else links.host_of(url)
+    if not re.fullmatch(r"[a-z0-9-]+(\.[a-z0-9-]+)+", domain):
+        raise ValueError("no site for the login")
+    return "." + domain
+
+
 def command(url: str, work: str, ffmpeg_dir, browser: str = "", extra=()) -> list[str]:
     """The child's argument list. The link always comes last, after "--"."""
+    if not isinstance(url, str) or not re.match(r"https?://", url, re.I):
+        raise ValueError("only web links")  # also never something that reads as an option
     config = os.path.join(work, ".gallery-dl.json")
     with open(config, "w", encoding="utf-8") as f:
         json.dump(_config(work, ffmpeg_dir), f)
     args = [*self_command(), "--gallery-dl", "--config-ignore", "--config-json", config]
     if browser:
-        args += ["--cookies-from-browser", browser]
+        if not re.fullmatch(r"[a-z]+", browser):
+            raise ValueError("unknown browser")
+        args += ["--cookies-from-browser", f"{browser}/{cookie_domain(url)}"]  # only this site's cookies
     return [*args, *extra, "--", url]
 
 

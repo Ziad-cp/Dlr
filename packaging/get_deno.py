@@ -2,86 +2,89 @@
 
     python packaging/get_deno.py
 
-Puts deno and a NOTICE.txt into packaging/deno/. build.py copies that
-folder into the app. Every download is checked before it's used:
+Puts deno and a NOTICE.txt into packaging/deno/. build.py copies that folder into the app.
+Every download is checked before it's used, and the build stops on any mismatch:
 
-- Only from the official releases at github.com/denoland/deno, newest release, for Apple
-  chips (aarch64-apple-darwin).
-- Must match the SHA-256 published next to it in the same release (<file>.sha256sum).
-- Must carry a valid Apple-issued code signature and be built for Apple chips (arm64).
-- Must run, and be Deno 2 or newer (what yt-dlp needs).
+- A pinned release (VERSION below) from the official releases at github.com/denoland/deno, for
+  Apple chips (aarch64-apple-darwin), over HTTPS, with redirects allowed only to GitHub's
+  download servers.
+- Must match the SHA-256 pinned below (the one published next to it, <file>.sha256sum).
+- Must carry a valid code signature from Deno Land Inc.'s Apple Developer ID (team 2H4KBF436B),
+  be built for arm64, run, and report the pinned version.
+
+To move to a newer Deno: change VERSION and SHA256 (from the release's
+deno-aarch64-apple-darwin.zip.sha256sum), then run this script.
 """
 import hashlib
 import io
-import json
 import os
 import pathlib
 import platform
-import re
 import shutil
 import subprocess
 import sys
 import urllib.request
 import zipfile
+from urllib.parse import urlsplit
 
 HERE = pathlib.Path(__file__).resolve().parent
 OUT = HERE / "deno"
-LATEST = "https://api.github.com/repos/denoland/deno/releases/latest"
-TARGET = "aarch64-apple-darwin"
+VERSION = "2.9.8"
+NAME = "deno-aarch64-apple-darwin.zip"
+SHA256 = "9f0bf660393da2eaff044cdc7444cb08c73f235849b61d224d825a194ce7c98e"
+URL = f"https://github.com/denoland/deno/releases/download/v{VERSION}/{NAME}"
+TEAM_ID = "2H4KBF436B"  # Developer ID Application: Deno Land Inc.
+MAX_ZIP = 300 * 1024 * 1024
 
 
-def fetch(url: str) -> bytes:
-    if not url.startswith("https://"):
-        sys.exit(f"Refusing a non-HTTPS address: {url}")
-    headers = {"User-Agent": "Dlr-build"}
-    if url.startswith("https://api.github.com/") and os.environ.get("GITHUB_TOKEN"):
-        headers["Authorization"] = f"Bearer {os.environ['GITHUB_TOKEN']}"
-    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=300) as r:
-        if not r.geturl().startswith("https://"):
-            sys.exit(f"Redirected to a non-HTTPS address: {r.geturl()}")
-        return r.read()
+def _allowed(url: str) -> bool:
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    return parts.scheme == "https" and (host == "github.com" or host.endswith(".githubusercontent.com"))
 
 
-def expected_sha256(text: str, name: str) -> str:
-    """The SHA-256 for name in a .sha256sum file ("<hash>  <name>" lines)."""
-    for line in text.splitlines():
-        parts = line.split()
-        if len(parts) >= 2 and parts[-1].lstrip("*").rsplit("/", 1)[-1] == name:
-            if re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
-                return parts[0].lower()
-    sys.exit(f"No checksum listed for {name}.")
+class _GitHubOnly(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _allowed(newurl):
+            sys.exit(f"Refusing a redirect away from GitHub: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def fetch(url: str, limit: int = MAX_ZIP) -> bytes:
+    if not _allowed(url):
+        sys.exit(f"Refusing an address outside GitHub: {url}")
+    req = urllib.request.Request(url, headers={"User-Agent": "Dlr-build"})
+    with urllib.request.build_opener(_GitHubOnly).open(req, timeout=300) as r:
+        if not _allowed(r.geturl()):
+            sys.exit(f"Redirected away from GitHub: {r.geturl()}")
+        data = r.read(limit + 1)
+    if len(data) > limit:
+        sys.exit(f"{url} is larger than expected.")
+    return data
 
 
 def download() -> str:
     if sys.platform != "darwin" or platform.machine() != "arm64":
         sys.exit("Dlr is a Mac app for Apple chips (M1 or newer): run this on an Apple-chip Mac.")
-    release = json.loads(fetch(LATEST))
-    assets = {a["name"]: a["browser_download_url"] for a in release["assets"]}
-    name = f"deno-{TARGET}.zip"
-    if name not in assets or f"{name}.sha256sum" not in assets:
-        sys.exit(f"{name} or its checksum is missing from Deno {release['tag_name']}.")
-    expected = expected_sha256(fetch(assets[f"{name}.sha256sum"]).decode("utf-8", "replace"), name)
-    data = fetch(assets[name])
+    data = fetch(URL)
     actual = hashlib.sha256(data).hexdigest()
-    if actual != expected:
-        sys.exit(f"Checksum mismatch for {name}: got {actual}, expected {expected}.")
-    exe = "deno"
+    if actual != SHA256:
+        sys.exit(f"Checksum mismatch for {NAME}: got {actual}, expected {SHA256}.")
     with zipfile.ZipFile(io.BytesIO(data)) as z:
-        member = next((n for n in z.namelist() if n.rsplit("/", 1)[-1] == exe), None)
-        if not member:
-            sys.exit(f"{name} doesn't contain {exe}.")
-        (OUT / exe).write_bytes(z.read(member))
-    tool = OUT / exe
+        members = [n for n in z.namelist() if n.rsplit("/", 1)[-1] == "deno"]
+        if len(members) != 1:
+            sys.exit(f"{NAME} should contain exactly one deno.")
+        (OUT / "deno").write_bytes(z.read(members[0]))
+    tool = OUT / "deno"
     tool.chmod(0o755)
     subprocess.run(["xattr", "-c", str(tool)], check=False)
-    # Must be signed by a developer Apple knows (it's notarized), not just anyone.
-    subprocess.run(["codesign", "--verify", "--strict", "-R", "=anchor apple generic", str(tool)],
-                   check=True)
+    # Signed by Deno's own Developer ID (Apple-issued), not just anyone.
+    requirement = f'=anchor apple generic and certificate leaf[subject.OU] = "{TEAM_ID}"'
+    subprocess.run(["codesign", "--verify", "--strict", "-R", requirement, str(tool)], check=True)
     archs = subprocess.run(["lipo", "-archs", str(tool)], capture_output=True, text=True).stdout
     if archs.split() != ["arm64"]:
         sys.exit(f"deno is built for {archs.strip()}, not arm64 (Apple chips).")
-    return (f"{name} from https://github.com/denoland/deno/releases/tag/{release['tag_name']}, "
-            f"SHA-256 {actual}")
+    return f"{NAME} from https://github.com/denoland/deno/releases/tag/v{VERSION}, SHA-256 {actual}"
 
 
 def check() -> str:
@@ -89,9 +92,8 @@ def check() -> str:
     env = dict(os.environ, DENO_NO_UPDATE_CHECK="1")
     first = subprocess.run([str(exe), "--version"], capture_output=True, text=True, check=True,
                            env=env).stdout.splitlines()[0]
-    m = re.match(r"deno (\d+)\.", first)
-    if not m or int(m.group(1)) < 2:
-        sys.exit(f"yt-dlp needs Deno 2 or newer, got: {first}")
+    if not first.startswith(f"deno {VERSION} "):
+        sys.exit(f"Expected Deno {VERSION}, got: {first}")
     print(first)
     return first
 

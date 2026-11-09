@@ -14,7 +14,6 @@ import re
 import threading
 import unicodedata
 import urllib.parse
-import urllib.request
 
 import yt_dlp
 
@@ -41,9 +40,9 @@ def is_spotify(url: str) -> bool:
 
 
 def _get(url: str) -> tuple[str, str]:
-    """Fetch a Spotify page; returns (final URL after redirects, body)."""
-    req = urllib.request.Request(url, headers={"User-Agent": _UA, "Accept-Language": "en"})
-    with urllib.request.urlopen(req, timeout=15) as r:
+    """Fetch a Spotify page; returns (final URL after redirects, body). Every redirect hop is
+    checked (never this computer or the local network) and the page is size-capped."""
+    with safety.open_url(url, {"User-Agent": _UA, "Accept-Language": "en"}, timeout=15) as r:
         final = r.geturl()
         if not is_spotify(final) or not final.lower().startswith("https://"):
             raise SpotifyError("That Spotify link points somewhere else.")
@@ -58,6 +57,8 @@ def parse(url: str) -> tuple[str, str]:
     if "spotify.link" in url.lower():  # share links redirect to open.spotify.com
         try:
             url, _ = _get(url)
+        except safety.UnsafeInput as e:
+            raise SpotifyError(str(e)) from None
         except OSError:
             raise SpotifyError("Couldn't open this Spotify link. Check your internet connection.") from None
     m = re.search(r"/(track|album|playlist|artist|episode|show)/([A-Za-z0-9]{22})", url)

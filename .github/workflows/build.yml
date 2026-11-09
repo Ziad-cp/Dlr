@@ -8,6 +8,11 @@
 #             Either push a tag (git tag v1.1.0 && git push origin v1.1.0), or on GitHub:
 #             Releases › Draft a new release › tag v1.1.0 › Publish. The files are added
 #             about 10 minutes later. The tag must match __version__ in app.py.
+#
+# Security: every action is pinned to a full commit SHA (the version is in the comment), the
+# workflow can only read the repository except for the release job, checkouts don't keep the
+# token on disk, Python packages are installed with hash checking, and no secret is used
+# besides GitHub's own short-lived token for publishing the release.
 name: Build the Mac app
 
 on:
@@ -30,27 +35,28 @@ jobs:
   build:
     name: Mac (Apple chip)
     runs-on: macos-26
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
-      - name: Install Python packages
-        run: python -m pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
+      - name: Install Python packages (exact versions, checked against their SHA-256)
+        run: |
+          python -m pip install --no-cache-dir --disable-pip-version-check --require-hashes -r requirements-build.txt
+          python -m pip install --no-cache-dir --disable-pip-version-check --require-hashes --no-build-isolation -r requirements.txt
 
       - name: Unit tests (offline)
         run: python -m unittest discover -s tests -t . -v
 
-      - name: Download and check FFmpeg
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Download and check FFmpeg (pinned version and SHA-256)
         run: python packaging/get_ffmpeg.py
 
-      - name: Download and check Deno
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - name: Download and check Deno (pinned version and SHA-256)
         run: python packaging/get_deno.py
 
       - name: Build the app
@@ -127,14 +133,14 @@ jobs:
           screencapture -x "screenshots/Dlr-mac.png" || echo "::warning::No screenshot"
           pkill -x Dlr || true
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         if: always()
         with:
           name: screenshot-mac
           path: screenshots/
           if-no-files-found: ignore
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: ${{ env.DMG }}
           path: dist/${{ env.DMG }}
@@ -145,17 +151,20 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
       - name: Check the tag matches the app's version
         run: |
           VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' app.py)
           [ "$GITHUB_REF_NAME" = "v$VERSION" ] || { echo "Tag $GITHUB_REF_NAME doesn't match app.py version $VERSION"; exit 1; }
 
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: ${{ env.DMG }}
           path: files
@@ -166,6 +175,7 @@ jobs:
         run: |
           cd files
           sha256sum "$DMG" > "$DMG.sha256"
+          SHA256=$(cut -d ' ' -f 1 "$DMG.sha256")
           cat > ../notes.md <<'EOF'
           ## Download
 
@@ -178,11 +188,22 @@ jobs:
           Everything Dlr needs is included (yt-dlp, gallery-dl, FFmpeg and Deno). You don't need to install anything else.
           Step-by-step instructions: https://github.com/Ziad-cp/Dlr#download
           EOF
+          {
+            echo
+            echo "**SHA-256 of Dlr-mac-apple-silicon.dmg:** \`$SHA256\`"
+            echo
+            echo "Check it in Terminal with \`shasum -a 256 ~/Downloads/Dlr-mac-apple-silicon.dmg\` (also in Dlr-mac-apple-silicon.dmg.sha256)."
+          } >> ../notes.md
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # The release was created on the GitHub website: add the files (and notes if it has none).
             gh release upload "$GITHUB_REF_NAME" "$DMG" "$DMG.sha256" --clobber --repo "$GITHUB_REPOSITORY"
-            if [ -z "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body)" ]; then
+            BODY=$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body -q .body)
+            if [ -z "$BODY" ]; then
               gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file ../notes.md
+            elif ! printf '%s' "$BODY" | grep -q "$SHA256"; then
+              # Notes written on the website: add this build's checksum to them.
+              { printf '%s\n\n' "$BODY"; echo "**SHA-256 of Dlr-mac-apple-silicon.dmg:** \`$SHA256\`"; } > ../notes-edit.md
+              gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file ../notes-edit.md
             fi
           else
             gh release create "$GITHUB_REF_NAME" "$DMG" "$DMG.sha256" --repo "$GITHUB_REPOSITORY" \

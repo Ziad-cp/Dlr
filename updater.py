@@ -2,11 +2,14 @@
 
 - Downloads only from the official GitHub releases (github.com/yt-dlp/yt-dlp), over HTTPS,
   following redirects only to GitHub's own download servers.
-- Checks the file against the release's official SHA2-256SUMS and the version written inside
-  it. On any mismatch the download is thrown away and the current version stays.
-- Keeps the update in ~/Library/Application Support/Dlr/yt-dlp/. At launch, activate() uses it
-  only if it's newer than the built-in yt-dlp, still matches its recorded checksum, and loads
-  cleanly; otherwise the built-in version is used (and a broken update is removed).
+- Checks the release's checksum list (SHA2-256SUMS) against its OpenPGP signature
+  (SHA2-256SUMS.sig) with yt-dlp's release key, which is pinned inside Dlr (pgp.py), then the file
+  against that list and the version written inside it. On any mismatch the download is thrown
+  away and the current version stays.
+- Keeps the update in ~/Library/Application Support/Dlr/yt-dlp/, together with the signed
+  checksum list and its signature. At launch, activate() uses it only if it's newer than the
+  built-in yt-dlp, the signature is still valid, the file still matches the signed checksum, and
+  it loads cleanly; otherwise the built-in version is used (and a bad update is removed).
 - Dlr installs a new release on its own: at most once a day at launch, and again (at most once
   an hour) when a download fails, since a failure often means the site changed. It's used from
   the next launch. The Update button does the same at any time.
@@ -32,6 +35,8 @@ import zipfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pgp
+
 RELEASES = "https://github.com/yt-dlp/yt-dlp/releases"
 ASSET = "yt-dlp"  # the platform-independent Python zip app
 MAX_ASSET = 60 * 1024 * 1024
@@ -46,6 +51,7 @@ def app_dir() -> Path:
 
 UPDATE_DIR = app_dir() / "yt-dlp"
 ZIP, MANIFEST, STATE = UPDATE_DIR / "yt-dlp.zip", UPDATE_DIR / "manifest.json", UPDATE_DIR / "state.json"
+SUMS, SIGNATURE = UPDATE_DIR / "SHA2-256SUMS", UPDATE_DIR / "SHA2-256SUMS.sig"
 
 # What is in use; filled in by activate(). "pending": a newer version installed since launch.
 active = {"source": "built-in", "version": "", "note": "", "pending": ""}
@@ -97,8 +103,15 @@ def activate() -> dict:
         return active  # no update installed
     if not newer(version, active["version"]):
         return active
-    if _sha256(ZIP) != manifest.get("sha256"):
-        _discard("The saved yt-dlp update was damaged, so the built-in version is used.")
+    try:
+        if SUMS.is_symlink() or SIGNATURE.is_symlink():
+            raise UpdateError("unexpected link")
+        sums = SUMS.read_bytes()
+        verify_signature(sums, SIGNATURE.read_bytes())
+        if _sha256(ZIP) != _listed_sha256(sums.decode("utf-8", "replace")) or _sha256(ZIP) != manifest.get("sha256"):
+            raise UpdateError("checksum mismatch")
+    except (OSError, UpdateError):
+        _discard("The saved yt-dlp update couldn't be verified, so the built-in version is used.")
         return active
     sys.path.insert(0, str(ZIP))
     try:
@@ -119,7 +132,7 @@ def activate() -> dict:
 
 def _discard(note: str):
     active["note"] = note
-    for path in (ZIP, MANIFEST):
+    for path in (ZIP, MANIFEST, SUMS, SIGNATURE):
         try:
             path.unlink()
         except OSError:
@@ -232,16 +245,28 @@ def current_version() -> str:
     return active["pending"] if newer(active["pending"], in_use) else in_use
 
 
-def verify(data: bytes, sums: str, tag: str) -> str:
-    """Check a downloaded yt-dlp against the release's SHA2-256SUMS and its own version.
-    Returns the SHA-256; raises UpdateError on any mismatch."""
-    expected = None
-    for line in sums.splitlines():
-        parts = line.split()
-        if len(parts) == 2 and parts[1].lstrip("*") == ASSET:
-            expected = parts[0].lower()
-    if not expected or not re.fullmatch(r"[0-9a-f]{64}", expected):
+def verify_signature(sums: bytes, signature: bytes) -> str:
+    """Check the release's SHA2-256SUMS against SHA2-256SUMS.sig with yt-dlp's pinned release key.
+    Returns the signing key's fingerprint; raises UpdateError if it isn't a valid signature."""
+    try:
+        return pgp.verify(sums, signature, pgp.YTDLP_PUBLIC_KEY, pgp.YTDLP_FINGERPRINT)
+    except (pgp.BadSignature, ValueError, IndexError):
+        raise UpdateError("The checksum list isn't signed by yt-dlp's release key, so nothing was installed.") from None
+
+
+def _listed_sha256(sums: str) -> str:
+    """The SHA-256 the checksum list gives for the yt-dlp zip app."""
+    expected = [parts[0].lower() for parts in (line.split() for line in sums.splitlines())
+                if len(parts) == 2 and parts[1].lstrip("*") == ASSET]
+    if len(expected) != 1 or not re.fullmatch(r"[0-9a-f]{64}", expected[0]):
         raise UpdateError("The official checksum list didn't include yt-dlp, so nothing was installed.")
+    return expected[0]
+
+
+def verify(data: bytes, sums: str, tag: str) -> str:
+    """Check a downloaded yt-dlp against the release's (signature-checked) SHA2-256SUMS and its
+    own version. Returns the SHA-256; raises UpdateError on any mismatch."""
+    expected = _listed_sha256(sums)
     digest = hashlib.sha256(data).hexdigest()
     if digest != expected:
         raise UpdateError("The download didn't match the official checksum, so it was rejected.")
@@ -266,13 +291,17 @@ def install_latest() -> tuple[bool, str]:
         if not newer(tag, current):
             return False, f"Up to date ({current})"
         _, sums = _get(f"{RELEASES}/download/{tag}/SHA2-256SUMS", 64 * 1024)
+        _, signature = _get(f"{RELEASES}/download/{tag}/SHA2-256SUMS.sig", 16 * 1024)
+        signer = verify_signature(sums, signature)  # before anything else is downloaded or trusted
         _, data = _get(f"{RELEASES}/download/{tag}/{ASSET}", MAX_ASSET)
         digest = verify(data, sums.decode("utf-8", "replace"), tag)
         if UPDATE_DIR.is_symlink():
             raise UpdateError("The update folder is a link to somewhere else, so nothing was installed.")
         _write_atomic(ZIP, data)
+        _write_atomic(SUMS, sums)
+        _write_atomic(SIGNATURE, signature)
         _write_atomic(MANIFEST, json.dumps({"version": tag, "sha256": digest, "asset": ASSET,
-                                            "source": f"{RELEASES}/tag/{tag}"}).encode())
+                                            "signed_by": signer, "source": f"{RELEASES}/tag/{tag}"}).encode())
         active["pending"] = tag
         return True, f"Updated to {tag}. Restart Dlr to use it."
     except UpdateError as e:
