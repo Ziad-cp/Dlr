@@ -35,3 +35,19 @@ packaging/ffmpeg/
 
 # Deno downloaded for the app (packaging/get_deno.py)
 packaging/deno/
+
+# AI tool files (kept on disk, never committed)
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.specify/
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurf/
+.windsurfrules
+.aider*
+.continue/
+.github/copilot-instructions.md
+.mcp.json
