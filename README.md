@@ -171,12 +171,12 @@ The full threat model, every network connection and known limitations are docume
 ### Architecture
 
 ```mermaid
-flowchart LR
-    A[Link] --> B[Dlr app]
-    B --> C[yt-dlp]
-    B --> D[gallery-dl]
-    C --> G[Deno: YouTube]
-    C --> E[FFmpeg]
+flowchart TD
+    A[Your link] --> B[Dlr app]
+    B --> C[yt-dlp: videos and audio]
+    B --> D[gallery-dl: photos and slideshows]
+    C -.-> G[Deno: YouTube]
+    C --> E[FFmpeg: MP4 and MP3]
     D --> F[Download folder]
     E --> F
 ```
