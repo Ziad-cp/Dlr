@@ -303,5 +303,39 @@ class FolderTest(unittest.TestCase):
             self.assertEqual(os.listdir(final), ["evil.jpg"])
 
 
+class SpotifyListLabelTest(unittest.TestCase):
+    """The card shows the song count; the MP3 badge must not repeat it when the album is done."""
+
+    def run_album(self, fail=()):
+        album = {"kind": "album", "name": "EP", "owner": "Artist", "year": "2022", "tracks": [
+            {"id": f"t{i}", "name": f"Song {i}", "artists": ["Artist"], "number": i, "year": ""} for i in (1, 2)]}
+
+        def song(source, track, quality, work, ffmpeg_dir, *, name, **kw):
+            if track["name"] in fail:
+                raise dl.DownloaderError("not found")
+            path = os.path.join(work, name + ".mp3")
+            open(path, "w").close()
+            return {"path": path}
+
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch("spotify.collection", return_value=album), \
+                mock.patch("spotify.match", return_value="abc"), \
+                mock.patch.object(dl, "_youtube_link", return_value="https://www.youtube.com/watch?v=abc"), \
+                mock.patch.object(dl, "_download_song", side_effect=song):
+            return dl._download_spotify_list(
+                "https://open.spotify.com/album/x", "mp3", folder, None, title=lambda t: None,
+                progress=lambda d: None, status=lambda s: None, cancelled=lambda: False, browser_setting="off")
+
+    def test_whole_album_badge_is_the_mp3_quality(self):
+        result = self.run_album()
+        self.assertEqual(result["label"], dl.MP3_LABEL)
+        self.assertFalse(result["fallback"])
+
+    def test_missed_songs_are_counted(self):
+        result = self.run_album(fail=("Song 2",))
+        self.assertEqual(result["label"], "1 of 2 songs")
+        self.assertTrue(result["fallback"])
+
+
 if __name__ == "__main__":
     unittest.main()

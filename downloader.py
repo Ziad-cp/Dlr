@@ -1538,7 +1538,8 @@ def _download_spotify_list(url: str, quality: str, folder: str, ffmpeg_dir, *, t
         status("processing")
         base = safety.safe_filename(f"{c['owner']} - {c['name']}" if album and c["owner"] else c["name"], 120, "Spotify")
         final = safety.move_dir_into(folder, base, [(p, os.path.basename(p)) for p in saved])
-        label = f"{len(saved)} songs" if not missed else f"{len(saved)} of {n} songs"
+        # The count is already on the card ("12 songs"); the MP3 badge only says which songs were missed.
+        label = MP3_LABEL if not missed else f"{len(saved)} of {n} songs"
         return {"path": final, "title": c["name"], "label": label, "fallback": bool(missed)}
     finally:
         shutil.rmtree(work, ignore_errors=True)
