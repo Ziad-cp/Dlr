@@ -1,136 +1,124 @@
 <div align="center">
 
-<img src="packaging/icon.png" alt="Dlr" width="120">
+<img src="packaging/icon.png" alt="" width="96">
 
 # Dlr
 
-**Download videos and audio from YouTube, TikTok, Instagram and 1,000+ other sites.**
+**A video and MP3 downloader for Apple Silicon Macs, built on yt-dlp.**
 
 [![Latest release](https://img.shields.io/github/v/release/Ziad-cp/Dlr?style=flat-square&color=6d5dfc)](https://github.com/Ziad-cp/Dlr/releases/latest)
-[![Build](https://img.shields.io/github/actions/workflow/status/Ziad-cp/Dlr/build.yml?branch=main&style=flat-square&label=build)](https://github.com/Ziad-cp/Dlr/actions/workflows/build.yml)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%28Apple%20Silicon%29-555?style=flat-square)](#download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-555?style=flat-square)](LICENSE)
-
-<img src="docs/screenshot.png" alt="Dlr on macOS" width="720">
+[![Build](https://img.shields.io/github/actions/workflow/status/Ziad-cp/Dlr/build.yml?branch=main&style=flat-square&label=build)](https://github.com/Ziad-cp/Dlr/actions/workflows/build.yml)
+[![macOS Apple Silicon](https://img.shields.io/badge/macOS%2012%2B-Apple%20Silicon-555?style=flat-square&logo=apple)](#download--install)
 
 </div>
 
-## Download
+## Demo
 
-**[Download Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg)**
+<p align="center"><img src="docs/demo.gif" alt="Downloading Dlr from GitHub, installing it, and saving a video with it" width="860"></p>
 
-**Mac: Apple Silicon (M1 or newer) only**, on macOS 12 Monterey or newer (the oldest macOS
-the bundled FFmpeg and Deno run on). To check your Mac: Apple menu › **About This Mac** should
-say "Chip: Apple M…".
+<p align="center"><a href="docs/demo.mp4">Watch full demo (MP4)</a></p>
 
-The link always gives the newest version. All versions, each with its SHA-256 checksum, are
-on the [releases page](https://github.com/Ziad-cp/Dlr/releases). Everything is included: no
-extra software to install. The .dmg is the only way to install Dlr.
+## What it is
 
-### Check the download
+Dlr is a small Mac app: paste a link, get an MP4 that plays everywhere, or a 320 kbps MP3. It wraps
+[yt-dlp](https://github.com/yt-dlp/yt-dlp) and [gallery-dl](https://github.com/mikf/gallery-dl) in a
+native window, ships everything they need, and treats every link, page and file from the internet as
+untrusted.
 
-To make sure the .dmg is exactly the one GitHub built, run this in Terminal and compare the
-result with the SHA-256 in that version's release notes (also in
+## Features
+
+- **Paste and go.** Copy a link and switch to Dlr: it fills it in and looks it up.
+- **Video or MP3.** H.264 MP4 when the site has it at full quality, otherwise the best version converted;
+  every file is checked for picture and sound.
+- **Real qualities only.** Pick from the resolutions the video actually has.
+- **Photo posts.** Slideshows, carousels and galleries are saved as one folder per post.
+- **Spotify.** Songs, albums and playlists, matched on YouTube Music and saved as tagged MP3s.
+- **Self-updating engines.** yt-dlp and gallery-dl update themselves from their official releases,
+  verified before use.
+- **Private.** No account, no history, no logs, no telemetry. Browser logins are off unless you turn
+  them on.
+
+## Supported sites
+
+| Site | What works | Login needed |
+| --- | --- | --- |
+| YouTube | Videos (choose a quality), MP3 | Only for private, age-restricted or "not a bot" videos |
+| TikTok | Videos without watermark, photo slideshows with sound, share links | No |
+| Instagram | Reels, video posts, share links | For photo posts, carousels and stories |
+| Reddit | Videos with sound, galleries, share links | Yes: Reddit refuses most logged-out downloads |
+| X | Videos | No |
+| Facebook | Public videos | No |
+| Pinterest | Video and image pins | No |
+| Spotify | Songs, albums, playlists (first 100 songs) as MP3 | No |
+| 1,000+ others | Anything [yt-dlp supports](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md) | Depends on the site |
+
+Logins are read from the browser you choose in **Settings › Logins from**, only when a site asks for one.
+
+## Download & install
+
+Requires a Mac with Apple Silicon (M1 or newer) and macOS 12 Monterey or newer.
+
+1. Download **[Dlr-mac-apple-silicon.dmg](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg)**.
+2. Open it and drag **Dlr** into **Applications**.
+3. Open Dlr. It isn't notarized by Apple, so the first time macOS says it can't check it: click
+   **Done**, open **System Settings › Privacy & Security**, click **Open Anyway** next to "Dlr was
+   blocked", and confirm. After that it opens normally.
+
+yt-dlp, gallery-dl, FFmpeg and Deno are included. Nothing else to install.
+
+## Verify your download
+
+SHA-256 of Dlr 1.2.1 (also in the release notes and in
 [Dlr-mac-apple-silicon.dmg.sha256](https://github.com/Ziad-cp/Dlr/releases/latest/download/Dlr-mac-apple-silicon.dmg.sha256)):
+
+```
+d20482eed54dc73482d6cb4e54d99d429e6a111585f8b0fb4792321647f3af77
+```
 
 ```bash
 shasum -a 256 ~/Downloads/Dlr-mac-apple-silicon.dmg
 ```
 
-**Dlr 1.2.0:** `28073c518bf3f40e913c63b63c4d5ff5f276a3e92b04a29ac59b112eaad595d0`
+## Usage
 
-### First launch
+1. Copy a link to a video, post, song or playlist.
+2. Switch to Dlr. The link is filled in and a preview card appears.
+3. Click **Download Video** (click it again while it runs to stop and pick another quality) or **MP3**.
+4. Click **Show in Finder** when it's done.
 
-Dlr isn't signed with a paid Apple certificate, so macOS asks you to confirm it once:
+Files are saved to your **Downloads** folder; change it in **Settings › Save downloads to**. Existing
+files are never overwritten.
 
-1. Open the .dmg and drag **Dlr** into **Applications**.
-2. Open Dlr. macOS says it can't check it for malicious software: click **Done**.
-3. Open **System Settings › Privacy & Security**, scroll down to **Security**, and click
-   **Open Anyway** next to "Dlr was blocked".
-4. Enter your Mac password, then click **Open**. From now on Dlr opens normally.
+## Security
 
-## Features
+- **Signed engine updates.** yt-dlp updates must carry a valid signature from yt-dlp's release key,
+  pinned in the app and checked strictly; gallery-dl updates must match PyPI's SHA-256.
+- **Pinned tools.** FFmpeg 9.0.2 and Deno 2.9.8 are pinned to exact files, SHA-256s and their makers'
+  Apple Developer IDs. FFmpeg is Martin Riedl's notarized third-party build, not an ffmpeg.org binary.
+  Python packages are pinned with hashes.
+- **Local-network block.** Links, redirects and every connection made from Python can't reach your Mac
+  or local network, including DNS rebinding.
+- **Restricted page bridge.** The window can call 11 checked functions by exact name; none runs a
+  command or chooses where files go. Text from sites is never inserted as HTML.
+- **Files and errors.** Names from titles can't escape the download folder; errors never show file
+  paths or cookies.
 
-- **Paste and go.** Copy a link and switch to Dlr: it fills in and looks up the video by itself.
-- **Video or MP3.** An MP4 that plays everywhere (including iPhone): H.264 when the site has it
-  at that quality, otherwise the best version converted to MP4. Or an MP3 at 320 kbps.
-- **Choose a quality.** Only the qualities that video really has.
-- **Photo posts too.** TikTok slideshows (all photos, plus the sound as an MP3), Instagram
-  photo posts and carousels (every photo and video), Reddit galleries: same Download button,
-  saved into one folder per post.
-- **Share links.** `vm.tiktok.com`, `instagram.com/share/…`, `reddit.com/r/…/s/…` and `redd.it`
-  links are followed to the post first.
-- **Spotify songs, albums and playlists.** Each song is matched on YouTube Music and saved as a
-  320 kbps MP3 with its title, artist, album and cover art. No Spotify account or key needed.
-  (Spotify's public pages list a playlist's first 100 songs.)
-- **Queue.** Add several links; they download one after another.
-- **Checked files.** Every video is checked for picture and sound. If one version fails,
-  another is tried. After a failed download Dlr updates its engines, and if a newer one
-  arrived, tries once more with it.
-- **Logins only if you want them.** Off by default. If you turn on **Logins from** in Settings
-  and a site asks you to log in, Dlr retries once with that browser's login. Cookies are never
-  saved.
-- **Private.** No account, no history, no logs, no tracking.
-
-Downloads from each site are tested on a Mac with `tests/live_links.py`.
-
-### Sites that need a login
-
-Some content is only shown to logged-in visitors. Logins are off by default, so Dlr says
-"… needs login — turn on logins in settings". To download it, choose a browser under
-**Logins from** in Settings and be logged in to the site in that browser:
-
-- **Reddit** now refuses most downloads from people who aren't logged in.
-- **Instagram** stories and highlights, and some older single-photo posts.
-- Private, age-restricted or "confirm you're not a bot" videos on any site.
-
-## iPhone and iPad
-
-There's no iOS version. Apple only allows apps from the App Store, which doesn't permit video
-downloaders, and the other routes (sideloading, alternative stores) expire, cost money or are
-limited to some countries. Download on your Mac instead: Dlr's MP4s play natively on
-iPhone. Send them over AirDrop, or save them to iCloud Drive and use **Save Video** in Files.
-
-## Keeping it working
-
-Sites change often, so Dlr keeps its download engines up to date: it updates
-[yt-dlp](https://github.com/yt-dlp/yt-dlp) and [gallery-dl](https://github.com/mikf/gallery-dl)
-on its own at most once a day, and again after a failed download (at most once an hour; if a
-newer version arrived, it tries that download once more). A dot on the Settings icon means a new yt-dlp is waiting for a restart.
-**Settings › Update** does it at any time. Updates come only from
-the official releases (yt-dlp from GitHub, gallery-dl from PyPI) and are verified before use:
-yt-dlp's against its release signature, with yt-dlp's key built into Dlr, and gallery-dl's
-against the checksum PyPI publishes.
-
-## Security and privacy
-
-Dlr treats everything from the internet as untrusted:
-
-- No open network ports; the app runs no web server.
-- Links, redirects and every connection can never reach your computer or local network.
-- Nothing runs through a shell; downloaded files can't overwrite your files or land outside
-  the download folder, whatever a video's title says.
-- yt-dlp updates are signature-checked; the bundled FFmpeg and Deno are pinned versions checked
-  against pinned checksums and their makers' Apple signatures; Python packages are pinned with
-  hashes.
-- Titles and other text from sites can't run code in the window; errors never show file paths
-  or cookies.
-
-It stores only your download folder and **Logins from** settings. Details, limits and the full list of network
-connections: [SECURITY.md](SECURITY.md).
+Known limits: TikTok requests (made with curl_cffi) and streams yt-dlp hands to FFmpeg don't go
+through the local-network check; the app is signed ad hoc, not notarized. Details, the full list of
+network connections and all limits: [SECURITY.md](SECURITY.md).
 
 ## Building from source
 
-See [docs/BUILDING.md](docs/BUILDING.md) for running from source, building the app, the test
-setup and publishing releases.
+Python 3.12 on an Apple Silicon Mac; see [docs/BUILDING.md](docs/BUILDING.md).
+
+## Legal
+
+Only download content you have the right to download, and respect each site's terms of service.
+Copy-protected (DRM) services such as Netflix, or Spotify's own audio, aren't supported.
 
 ## License
 
-[MIT](LICENSE) © 2026 Ziad Gahlan. Built on [yt-dlp](https://github.com/yt-dlp/yt-dlp),
-[gallery-dl](https://github.com/mikf/gallery-dl), [FFmpeg](https://ffmpeg.org),
-[Deno](https://deno.com) and [pywebview](https://pywebview.flowrl.com/). The released app
-bundles GPL-licensed components (FFmpeg and gallery-dl), so it is distributed under the GPL v3.
-License notices ship inside the app.
-
-Only download content you have the right to download. Copy-protected (DRM) services such as
-Netflix or Spotify's own audio aren't supported.
+Dlr's source code is under the [MIT License](LICENSE). The released app bundles GPL-licensed
+components (FFmpeg and gallery-dl), so the app as distributed is covered by the GPL v3; their
+license notices ship inside the app.
