@@ -15,9 +15,7 @@
 
 ## Demo
 
-<p align="center"><img src="docs/demo.gif" alt="Downloading Dlr from GitHub, installing it, and saving a video with it" width="860"></p>
-
-<p align="center"><a href="docs/demo.mp4">Watch full demo (MP4)</a></p>
+<p align="center"><img src="docs/demo.gif" alt="Dlr saving a YouTube video in 1080p, a TikTok photo slideshow and a Spotify EP as MP3" width="800"></p>
 
 ## What it is
 
